@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Search, Loader2, TrendingUp, TrendingDown, ArrowLeft, AlertTriangle, ChevronDown, ChevronUp, Activity } from 'lucide-react';
+import { Sparkles, Search, Loader2, TrendingUp, TrendingDown, ArrowLeft, AlertTriangle, ChevronDown, ChevronUp, Activity, User } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -12,6 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../componen
 import { searchStocks, getAIPrediction, savePredictionHistory, getStockDetail } from '../services/api';
 import { calculateAllIndicators } from '../utils/technicalIndicators';
 import { toast } from 'sonner';
+import { userStorage } from '../services/authService';
 
 const TIME_PERIODS = [
   { value: 'today', label: '今日' },
@@ -108,6 +109,101 @@ export default function AIPredictionPage() {
   const [loading, setLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState('');
   const [indicators, setIndicators] = useState(null);
+  const [user, setUser] = useState(null);
+  const [baziMatch, setBaziMatch] = useState(null);
+
+  // 加载用户信息
+  useEffect(() => {
+    const storedUser = userStorage.getUser();
+    setUser(storedUser);
+  }, []);
+
+  // 计算命盘匹配度
+  const calculateBaziMatch = (stockSymbol) => {
+    if (!user?.bazi_data) return null;
+    
+    const xiyong = user.bazi_data.xiyong;
+    const xiShen = xiyong.xi_shen;
+    const yongShen = xiyong.yong_shen;
+    const jiShen = xiyong.ji_shen;
+    
+    // 根据股票代码判断五行属性
+    const getStockWuxing = (symbol) => {
+      const upperSymbol = symbol.toUpperCase();
+      // 医药、科技、互联网 -> 木
+      if (upperSymbol.includes('医') || upperSymbol.includes('药') || upperSymbol.includes('BIO') || 
+          upperSymbol.includes('TECH') || upperSymbol.includes('康') || upperSymbol.includes('健')) return '木';
+      // 能源、电力、传媒 -> 火
+      if (upperSymbol.includes('能源') || upperSymbol.includes('电') || upperSymbol.includes('OIL') ||
+          upperSymbol.includes('传媒') || upperSymbol.includes('ENERGY')) return '火';
+      // 地产、建材、水泥 -> 土
+      if (upperSymbol.includes('地产') || upperSymbol.includes('建') || upperSymbol.includes('PROP') ||
+          upperSymbol.includes('水泥')) return '土';
+      // 银行、金融、机械、金属 -> 金
+      if (upperSymbol.includes('银行') || upperSymbol.includes('金') || upperSymbol.includes('BANK') ||
+          upperSymbol.includes('机械') || upperSymbol.includes('GOLD') || upperSymbol.includes('XAU')) return '金';
+      // 航运、水产、饮料 -> 水
+      if (upperSymbol.includes('航') || upperSymbol.includes('水') || upperSymbol.includes('SHIP') ||
+          upperSymbol.includes('饮')) return '水';
+      // 默认根据市场判断
+      if (upperSymbol.includes('.SS') || upperSymbol.includes('.SZ')) return '土'; // A股偏土
+      if (upperSymbol.includes('.HK')) return '金'; // 港股偏金
+      if (upperSymbol.endsWith('=F')) return '金'; // 期货偏金
+      return '土'; // 默认
+    };
+    
+    const stockWuxing = getStockWuxing(stockSymbol);
+    
+    // 计算匹配关系
+    let matchLevel, matchDesc, matchStars;
+    
+    if (stockWuxing === xiShen) {
+      matchLevel = 'excellent';
+      matchDesc = '高度契合';
+      matchStars = 5;
+    } else if (stockWuxing === yongShen) {
+      matchLevel = 'good';
+      matchDesc = '较为契合';
+      matchStars = 4;
+    } else if (stockWuxing === jiShen) {
+      matchLevel = 'poor';
+      matchDesc = '不建议';
+      matchStars = 1;
+    } else {
+      matchLevel = 'neutral';
+      matchDesc = '一般';
+      matchStars = 3;
+    }
+    
+    // 判断五行生克关系
+    const WUXING_SHENG = { '木': '火', '火': '土', '土': '金', '金': '水', '水': '木' };
+    const WUXING_KE = { '木': '土', '火': '金', '土': '水', '金': '木', '水': '火' };
+    
+    let relationship;
+    if (stockWuxing === xiShen || stockWuxing === yongShen) {
+      relationship = '相宜';
+    } else if (WUXING_SHENG[xiShen] === stockWuxing) {
+      relationship = '喜神生之';
+    } else if (WUXING_KE[jiShen] === stockWuxing) {
+      relationship = '忌神所克';
+    } else if (stockWuxing === jiShen) {
+      relationship = '相冲';
+    } else {
+      relationship = '中性';
+    }
+    
+    return {
+      stockWuxing,
+      xiShen,
+      yongShen,
+      jiShen,
+      matchLevel,
+      matchDesc,
+      matchStars,
+      relationship,
+      userName: user.name,
+    };
+  };
 
   const handleSearch = useCallback(async (query) => {
     setSearchQuery(query);

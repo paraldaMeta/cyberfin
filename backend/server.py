@@ -282,6 +282,18 @@ MARKET_STOCKS = {
         {"symbol": "BDMS.BK", "name": "曼谷杜斯特医疗"},
         {"symbol": "PTTEP.BK", "name": "泰国国油勘探"},
     ],
+    "uae_stock": [
+        {"symbol": "ADNOCDIST.AD", "name": "阿布扎比国油分销"},
+        {"symbol": "FAB.AD", "name": "阿布扎比第一银行"},
+        {"symbol": "ETISALAT.AD", "name": "阿联酋电信"},
+        {"symbol": "ADCB.AD", "name": "阿布扎比商业银行"},
+        {"symbol": "ALDAR.AD", "name": "阿尔达地产"},
+        {"symbol": "IHC.AD", "name": "国际控股"},
+        {"symbol": "ADIB.AD", "name": "阿布扎比伊斯兰银行"},
+        {"symbol": "EMAAR.DU", "name": "伊玛尔地产"},
+        {"symbol": "DFM.DU", "name": "迪拜金融市场"},
+        {"symbol": "DIB.DU", "name": "迪拜伊斯兰银行"},
+    ],
     "futures": [
         {"symbol": "GC=F", "name": "黄金期货"},
         {"symbol": "SI=F", "name": "白银期货"},
@@ -510,6 +522,7 @@ async def get_markets():
             {"id": "jp_stock", "name": "日股", "description": "日本股票市场"},
             {"id": "kr_stock", "name": "韩股", "description": "韩国股票市场"},
             {"id": "th_stock", "name": "泰股", "description": "泰国股票市场"},
+            {"id": "uae_stock", "name": "阿联酋股", "description": "阿联酋股票市场"},
             {"id": "futures", "name": "期货", "description": "商品期货市场"},
             {"id": "forex", "name": "外汇", "description": "外汇市场"},
         ]

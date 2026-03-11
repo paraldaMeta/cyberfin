@@ -32,6 +32,7 @@ const translations = {
     'market.jp_stock': '日股',
     'market.kr_stock': '韩股',
     'market.th_stock': '泰股',
+    'market.uae_stock': '阿联酋股',
     'market.futures': '期货',
     'market.forex': '外汇',
     
@@ -137,6 +138,7 @@ const translations = {
     'market.jp_stock': 'JP Stock',
     'market.kr_stock': 'KR Stock',
     'market.th_stock': 'TH Stock',
+    'market.uae_stock': 'UAE Stock',
     'market.futures': 'Futures',
     'market.forex': 'Forex',
     

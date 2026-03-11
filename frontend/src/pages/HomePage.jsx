@@ -72,6 +72,7 @@ export default function HomePage() {
     { id: 'jp_stock', name: t('market.jp_stock'), icon: '🇯🇵' },
     { id: 'kr_stock', name: t('market.kr_stock'), icon: '🇰🇷' },
     { id: 'th_stock', name: t('market.th_stock'), icon: '🇹🇭' },
+    { id: 'uae_stock', name: t('market.uae_stock') || '阿联酋股', icon: '🇦🇪' },
     { id: 'futures', name: t('market.futures'), icon: '📊' },
     { id: 'forex', name: t('market.forex'), icon: '💱' },
   ];
