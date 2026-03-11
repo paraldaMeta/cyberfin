@@ -6,6 +6,8 @@ import MarketPage from "./pages/MarketPage";
 import StockDetailPage from "./pages/StockDetailPage";
 import AIPredictionPage from "./pages/AIPredictionPage";
 import DivinationPage from "./pages/DivinationPage";
+import WatchlistPage from "./pages/WatchlistPage";
+import HistoryPage from "./pages/HistoryPage";
 import { Toaster } from "./components/ui/sonner";
 
 function App() {
@@ -19,6 +21,8 @@ function App() {
             <Route path="/stock/:symbol" element={<StockDetailPage />} />
             <Route path="/predict/ai" element={<AIPredictionPage />} />
             <Route path="/predict/divination" element={<DivinationPage />} />
+            <Route path="/watchlist" element={<WatchlistPage />} />
+            <Route path="/history" element={<HistoryPage />} />
           </Routes>
         </Layout>
       </BrowserRouter>

@@ -25,6 +25,13 @@ db = client[os.environ['DB_NAME']]
 MINIMAX_API_KEY = os.environ.get('MINIMAX_API_KEY', '')
 MINIMAX_API_URL = "https://api.minimax.chat/v1/text/chatcompletion_v2"
 
+# Alpha Vantage API (backup data source)
+ALPHA_VANTAGE_API_KEY = os.environ.get('ALPHA_VANTAGE_API_KEY', 'demo')
+ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query"
+
+# Prediction history retention (3 months = 90 days)
+PREDICTION_HISTORY_DAYS = 90
+
 # Create the main app
 app = FastAPI()
 
@@ -84,6 +91,25 @@ class PredictionResponse(BaseModel):
 class DivinationResponse(BaseModel):
     report: str
     timestamp: str
+
+# New models for prediction history
+class PredictionHistoryItem(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    prediction_type: str  # "ai" or "divination"
+    stock_code: str
+    stock_name: str
+    time_period: str
+    user_name: Optional[str] = None  # for divination
+    result: Dict[str, Any]
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class WatchlistItem(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    symbol: str
+    name: str
+    market_type: str
+    added_at: str
 
 # ============ Market Data Service ============
 # Stock symbols for different markets
@@ -198,14 +224,49 @@ async def fetch_yahoo_finance_data(symbol: str) -> Optional[Dict]:
                         "price": meta.get("regularMarketPrice", 0),
                         "previous_close": meta.get("previousClose", 0),
                         "volume": meta.get("regularMarketVolume", 0),
-                        "currency": meta.get("currency", "USD")
+                        "currency": meta.get("currency", "USD"),
+                        "source": "yahoo"
                     }
+            elif response.status_code == 429:
+                logger.warning(f"Yahoo Finance rate limited for {symbol}, trying Alpha Vantage")
+                return None
     except Exception as e:
         logger.error(f"Yahoo Finance error for {symbol}: {e}")
     return None
 
+async def fetch_alpha_vantage_data(symbol: str) -> Optional[Dict]:
+    """Fetch stock data from Alpha Vantage API (backup)"""
+    try:
+        # Convert symbol format for Alpha Vantage
+        av_symbol = symbol.replace(".SS", "").replace(".SZ", "").replace(".HK", "").replace(".T", "").replace(".KS", "").replace(".BK", "")
+        
+        params = {
+            "function": "GLOBAL_QUOTE",
+            "symbol": av_symbol,
+            "apikey": ALPHA_VANTAGE_API_KEY
+        }
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.get(ALPHA_VANTAGE_URL, params=params)
+            if response.status_code == 200:
+                data = response.json()
+                quote = data.get("Global Quote", {})
+                if quote:
+                    price = float(quote.get("05. price", 0))
+                    prev_close = float(quote.get("08. previous close", 0))
+                    volume = int(quote.get("06. volume", 0))
+                    return {
+                        "price": price,
+                        "previous_close": prev_close,
+                        "volume": volume,
+                        "currency": "USD",
+                        "source": "alphavantage"
+                    }
+    except Exception as e:
+        logger.error(f"Alpha Vantage error for {symbol}: {e}")
+    return None
+
 async def fetch_stock_data(symbol: str, name: str, market_type: str) -> StockData:
-    """Fetch stock data with caching"""
+    """Fetch stock data with caching and fallback to Alpha Vantage"""
     cache_key = symbol
     now = datetime.now(timezone.utc)
     
@@ -215,8 +276,12 @@ async def fetch_stock_data(symbol: str, name: str, market_type: str) -> StockDat
             cached = market_cache[cache_key]
             return StockData(**cached)
     
-    # Fetch from Yahoo Finance
+    # Try Yahoo Finance first
     data = await fetch_yahoo_finance_data(symbol)
+    
+    # Fallback to Alpha Vantage if Yahoo fails
+    if not data:
+        data = await fetch_alpha_vantage_data(symbol)
     
     if data:
         price = data["price"]
@@ -235,7 +300,7 @@ async def fetch_stock_data(symbol: str, name: str, market_type: str) -> StockDat
             "market_type": market_type
         }
     else:
-        # Generate simulated data if API fails
+        # Generate simulated data if both APIs fail
         import random
         base_price = random.uniform(10, 1000)
         change = random.uniform(-5, 5)
@@ -718,6 +783,139 @@ async def divination_prediction(request: DivinationRequest):
         "report": response_text,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
+
+# ============ Prediction History APIs ============
+class SaveHistoryRequest(BaseModel):
+    prediction_type: str
+    stock_code: str
+    stock_name: str
+    time_period: str
+    result: str  # JSON string
+    user_name: Optional[str] = None
+
+@api_router.post("/history/save")
+async def save_prediction_history(request: SaveHistoryRequest):
+    """Save prediction to history"""
+    # Parse result JSON string
+    try:
+        result_data = json.loads(request.result)
+    except:
+        result_data = {"raw": request.result}
+    
+    history_item = {
+        "id": str(uuid.uuid4()),
+        "prediction_type": request.prediction_type,
+        "stock_code": request.stock_code,
+        "stock_name": request.stock_name,
+        "time_period": request.time_period,
+        "user_name": request.user_name,
+        "result": result_data,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.prediction_history.insert_one(history_item)
+    return {"success": True, "id": history_item["id"]}
+
+@api_router.get("/history")
+async def get_prediction_history(
+    prediction_type: Optional[str] = None,
+    stock_code: Optional[str] = None,
+    limit: int = 50
+):
+    """Get prediction history (last 3 months)"""
+    # Calculate cutoff date (3 months ago)
+    cutoff_date = (datetime.now(timezone.utc) - timedelta(days=PREDICTION_HISTORY_DAYS)).isoformat()
+    
+    # Build query
+    query = {"created_at": {"$gte": cutoff_date}}
+    if prediction_type:
+        query["prediction_type"] = prediction_type
+    if stock_code:
+        query["stock_code"] = stock_code
+    
+    # Fetch history
+    history = await db.prediction_history.find(
+        query, 
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(limit)
+    
+    return {"history": history, "count": len(history)}
+
+@api_router.delete("/history/{history_id}")
+async def delete_prediction_history(history_id: str):
+    """Delete a prediction history item"""
+    result = await db.prediction_history.delete_one({"id": history_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="History item not found")
+    return {"success": True}
+
+@api_router.delete("/history/cleanup/old")
+async def cleanup_old_history():
+    """Cleanup history older than 3 months"""
+    cutoff_date = (datetime.now(timezone.utc) - timedelta(days=PREDICTION_HISTORY_DAYS)).isoformat()
+    result = await db.prediction_history.delete_many({"created_at": {"$lt": cutoff_date}})
+    return {"deleted_count": result.deleted_count}
+
+# ============ Watchlist APIs ============
+@api_router.get("/watchlist/{client_id}")
+async def get_watchlist(client_id: str):
+    """Get user's watchlist"""
+    watchlist = await db.watchlists.find(
+        {"client_id": client_id},
+        {"_id": 0}
+    ).to_list(100)
+    return {"watchlist": watchlist}
+
+@api_router.post("/watchlist/{client_id}")
+async def add_to_watchlist(client_id: str, item: WatchlistItem):
+    """Add stock to watchlist"""
+    # Check if already exists
+    existing = await db.watchlists.find_one({
+        "client_id": client_id,
+        "symbol": item.symbol
+    })
+    if existing:
+        return {"success": False, "message": "Already in watchlist"}
+    
+    watchlist_doc = {
+        "client_id": client_id,
+        "symbol": item.symbol,
+        "name": item.name,
+        "market_type": item.market_type,
+        "added_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.watchlists.insert_one(watchlist_doc)
+    return {"success": True}
+
+@api_router.delete("/watchlist/{client_id}/{symbol}")
+async def remove_from_watchlist(client_id: str, symbol: str):
+    """Remove stock from watchlist"""
+    result = await db.watchlists.delete_one({
+        "client_id": client_id,
+        "symbol": symbol
+    })
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found in watchlist")
+    return {"success": True}
+
+@api_router.get("/watchlist/{client_id}/data")
+async def get_watchlist_with_data(client_id: str):
+    """Get watchlist with current market data"""
+    watchlist = await db.watchlists.find(
+        {"client_id": client_id},
+        {"_id": 0}
+    ).to_list(100)
+    
+    # Fetch current data for each stock
+    result = []
+    for item in watchlist:
+        stock_data = await fetch_stock_data(item["symbol"], item["name"], item["market_type"])
+        result.append({
+            **stock_data.model_dump(),
+            "added_at": item["added_at"]
+        })
+    
+    return {"watchlist": result}
 
 # Include the router in the main app
 app.include_router(api_router)

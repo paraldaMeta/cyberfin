@@ -9,7 +9,9 @@ import {
   Star,
   Menu,
   X,
-  ChevronRight
+  ChevronRight,
+  History,
+  Heart
 } from 'lucide-react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -123,6 +125,26 @@ export default function Layout({ children }) {
               >
                 <Star className="w-5 h-5 text-[#ffd700]" />
                 <span className="text-sm text-[#a1a1aa] group-hover:text-white transition-colors">占卜推演</span>
+              </button>
+            </div>
+
+            <div className="px-3 mb-4">
+              <h2 className="text-xs uppercase tracking-wider text-[#52525b] mb-2 px-2">我的</h2>
+              <button
+                onClick={() => { navigate('/watchlist'); setSidebarOpen(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-left hover:bg-[#1e2330] transition-colors group"
+                data-testid="nav-watchlist"
+              >
+                <Heart className="w-5 h-5 text-[#f0a500]" />
+                <span className="text-sm text-[#a1a1aa] group-hover:text-white transition-colors">自选股</span>
+              </button>
+              <button
+                onClick={() => { navigate('/history'); setSidebarOpen(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-left hover:bg-[#1e2330] transition-colors group"
+                data-testid="nav-history"
+              >
+                <History className="w-5 h-5 text-[#a1a1aa]" />
+                <span className="text-sm text-[#a1a1aa] group-hover:text-white transition-colors">预测历史</span>
               </button>
             </div>
           </ScrollArea>

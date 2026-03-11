@@ -27,6 +27,8 @@ class AsianFinancialPlatformTester:
                 response = requests.get(url, headers=headers, timeout=timeout)
             elif method == 'POST':
                 response = requests.post(url, json=data, headers=headers, timeout=timeout)
+            elif method == 'DELETE':
+                response = requests.delete(url, headers=headers, timeout=timeout)
 
             success = response.status_code == expected_status
             if success:
@@ -197,6 +199,200 @@ class AsianFinancialPlatformTester:
             else:
                 print(f"   ⚠️  Report structure may be incomplete")
 
+    def test_watchlist_endpoints(self):
+        """Test watchlist functionality"""
+        print("\n=== TESTING WATCHLIST ENDPOINTS ===")
+        
+        client_id = "test_client_123"
+        
+        # Test get empty watchlist
+        success, watchlist_data = self.run_test(
+            "Get Empty Watchlist", 
+            "GET", 
+            f"/watchlist/{client_id}", 
+            200
+        )
+        if success:
+            watchlist = watchlist_data.get('watchlist', [])
+            print(f"   Initial watchlist items: {len(watchlist)}")
+        
+        # Test add to watchlist
+        watchlist_item = {
+            "symbol": "600519.SS",
+            "name": "贵州茅台",
+            "market_type": "a_stock",
+            "added_at": datetime.now().isoformat()
+        }
+        
+        success, add_result = self.run_test(
+            "Add to Watchlist",
+            "POST",
+            f"/watchlist/{client_id}",
+            200,
+            data=watchlist_item
+        )
+        if success:
+            print(f"   Add result: {add_result.get('success', False)}")
+        
+        # Test get watchlist with data
+        success, watchlist_with_data = self.run_test(
+            "Get Watchlist with Data",
+            "GET",
+            f"/watchlist/{client_id}/data",
+            200
+        )
+        if success:
+            watchlist = watchlist_with_data.get('watchlist', [])
+            print(f"   Watchlist with data: {len(watchlist)} items")
+            if watchlist:
+                item = watchlist[0]
+                print(f"   First item: {item.get('name', 'Unknown')} - {item.get('price', 'No price')}")
+        
+        # Test remove from watchlist
+        success, remove_result = self.run_test(
+            "Remove from Watchlist",
+            "DELETE",
+            f"/watchlist/{client_id}/600519.SS",
+            200
+        )
+        if success:
+            print(f"   Remove result: {remove_result.get('success', False)}")
+        
+        # Test duplicate add (should fail)
+        self.run_test(
+            "Add to Watchlist Again",
+            "POST",
+            f"/watchlist/{client_id}",
+            200,  # API returns 200 but with success: false
+            data=watchlist_item
+        )
+
+    def test_history_endpoints(self):
+        """Test prediction history functionality"""
+        print("\n=== TESTING PREDICTION HISTORY ENDPOINTS ===")
+        
+        # Test get empty history
+        success, history_data = self.run_test(
+            "Get Empty History",
+            "GET",
+            "/history",
+            200
+        )
+        if success:
+            history = history_data.get('history', [])
+            print(f"   Initial history items: {len(history)}")
+        
+        # Test save AI prediction history
+        ai_history_item = {
+            "prediction_type": "ai",
+            "stock_code": "0700.HK",
+            "stock_name": "腾讯控股",
+            "time_period": "week",
+            "result": json.dumps({
+                "direction": "bullish",
+                "confidence": 75,
+                "analysis": "Test AI prediction analysis"
+            })
+        }
+        
+        success, save_result = self.run_test(
+            "Save AI History",
+            "POST",
+            "/history/save",
+            200,
+            data=ai_history_item
+        )
+        if success:
+            print(f"   Save AI history result: {save_result.get('success', False)}")
+            saved_id = save_result.get('id')
+            if saved_id:
+                print(f"   Saved history ID: {saved_id}")
+        
+        # Test save divination history
+        div_history_item = {
+            "prediction_type": "divination",
+            "stock_code": "600519.SS", 
+            "stock_name": "贵州茅台",
+            "time_period": "month",
+            "user_name": "测试用户",
+            "result": json.dumps({
+                "report": "Test divination report content"
+            })
+        }
+        
+        success, save_result = self.run_test(
+            "Save Divination History",
+            "POST", 
+            "/history/save",
+            200,
+            data=div_history_item
+        )
+        
+        # Test get history with items
+        success, history_data = self.run_test(
+            "Get History with Items",
+            "GET",
+            "/history",
+            200
+        )
+        if success:
+            history = history_data.get('history', [])
+            print(f"   History items after save: {len(history)}")
+            if history:
+                item = history[0]
+                print(f"   Latest item: {item.get('stock_name', 'Unknown')} - {item.get('prediction_type', 'Unknown')}")
+        
+        # Test filter by prediction type
+        success, ai_history = self.run_test(
+            "Get AI History Only",
+            "GET",
+            "/history?prediction_type=ai",
+            200
+        )
+        if success:
+            history = ai_history.get('history', [])
+            print(f"   AI-only history items: {len(history)}")
+        
+        success, div_history = self.run_test(
+            "Get Divination History Only", 
+            "GET",
+            "/history?prediction_type=divination",
+            200
+        )
+        if success:
+            history = div_history.get('history', [])
+            print(f"   Divination-only history items: {len(history)}")
+
+    def test_alpha_vantage_fallback(self):
+        """Test Alpha Vantage data source fallback"""
+        print("\n=== TESTING ALPHA VANTAGE FALLBACK ===")
+        
+        # This test will check if the data source is working
+        # We can't force Yahoo to fail, but we can check if Alpha Vantage is configured
+        success, stock_detail = self.run_test(
+            "Stock Detail (Data Source Check)",
+            "GET",
+            "/stock/AAPL",  # Use a US stock that Alpha Vantage supports
+            200,
+            timeout=30
+        )
+        
+        if success:
+            stock = stock_detail.get('stock', {})
+            historical = stock_detail.get('historical', [])
+            print(f"   Stock data source working: {stock.get('name', 'Unknown')}")
+            print(f"   Historical data points: {len(historical)}")
+            print(f"   Price: {stock.get('price', 'No price')}")
+        
+        # Test with another symbol that might trigger fallback
+        success, stock_detail = self.run_test(
+            "Stock Detail (Fallback Test)",
+            "GET", 
+            "/stock/MSFT",
+            200,
+            timeout=30
+        )
+
     def test_error_handling(self):
         """Test error handling for invalid requests"""
         print("\n=== TESTING ERROR HANDLING ===")
@@ -217,6 +413,12 @@ class AsianFinancialPlatformTester:
             "time_period": "invalid"
         }
         self.run_test("Invalid AI Request", "POST", "/predict/ai", 422, data=invalid_ai_request)
+        
+        # Test invalid watchlist operations
+        self.run_test("Remove Non-existent Watchlist Item", "DELETE", "/watchlist/invalid_client/INVALID", 404)
+        
+        # Test invalid history operations
+        self.run_test("Delete Non-existent History", "DELETE", "/history/invalid_id", 404)
 
 def main():
     print("🚀 Starting Asian Financial Platform API Tests")
@@ -230,6 +432,9 @@ def main():
         tester.test_basic_endpoints()
         tester.test_market_endpoints()
         tester.test_stock_endpoints()
+        tester.test_watchlist_endpoints()
+        tester.test_history_endpoints()
+        tester.test_alpha_vantage_fallback()
         tester.test_ai_prediction()
         tester.test_divination_prediction()
         tester.test_error_handling()

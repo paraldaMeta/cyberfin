@@ -34,4 +34,15 @@ export const searchStocks = (query) => api.get(`/search?q=${encodeURIComponent(q
 export const getAIPrediction = (data) => aiApi.post('/predict/ai', data);
 export const getDivinationPrediction = (data) => aiApi.post('/predict/divination', data);
 
+// Prediction History
+export const savePredictionHistory = (data) => api.post('/history/save', data);
+export const getPredictionHistory = (params) => api.get('/history', { params });
+export const deletePredictionHistory = (historyId) => api.delete(`/history/${historyId}`);
+
+// Watchlist
+export const getWatchlist = (clientId) => api.get(`/watchlist/${clientId}`);
+export const addToWatchlist = (clientId, item) => api.post(`/watchlist/${clientId}`, item);
+export const removeFromWatchlist = (clientId, symbol) => api.delete(`/watchlist/${clientId}/${encodeURIComponent(symbol)}`);
+export const getWatchlistWithData = (clientId) => api.get(`/watchlist/${clientId}/data`);
+
 export default api;

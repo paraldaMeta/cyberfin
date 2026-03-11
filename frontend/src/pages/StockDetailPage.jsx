@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, TrendingUp, TrendingDown, Sparkles, Star, RefreshCw, Loader2 } from 'lucide-react';
+import { ArrowLeft, TrendingUp, TrendingDown, Sparkles, Star, RefreshCw, Loader2, Heart } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -11,7 +11,18 @@ import { Skeleton } from '../components/ui/skeleton';
 import { Progress } from '../components/ui/progress';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, ComposedChart, Bar } from 'recharts';
-import { getStockDetail, getAIPrediction, getDivinationPrediction } from '../services/api';
+import { toast } from 'sonner';
+import { getStockDetail, getAIPrediction, getDivinationPrediction, savePredictionHistory, addToWatchlist } from '../services/api';
+
+// Get client ID for watchlist
+const getClientId = () => {
+  let clientId = localStorage.getItem('watchlist_client_id');
+  if (!clientId) {
+    clientId = 'client_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('watchlist_client_id', clientId);
+  }
+  return clientId;
+};
 
 const formatPrice = (value, decimals = 2) => {
   if (value === null || value === undefined) return '--';
@@ -107,8 +118,22 @@ export default function StockDetailPage() {
         }
       });
       setAiPrediction(response.data);
+      
+      // Save to history
+      try {
+        await savePredictionHistory({
+          prediction_type: 'ai',
+          stock_code: stockData.symbol,
+          stock_name: stockData.name,
+          time_period: aiTimePeriod,
+          result: JSON.stringify(response.data)
+        });
+      } catch (e) {
+        console.error('Failed to save history:', e);
+      }
     } catch (error) {
       console.error('AI prediction failed:', error);
+      toast.error('AI预测失败，请重试');
     } finally {
       setAiLoading(false);
     }
@@ -125,6 +150,20 @@ export default function StockDetailPage() {
         time_period: divTimePeriod
       });
       setDivination(response.data);
+      
+      // Save to history
+      try {
+        await savePredictionHistory({
+          prediction_type: 'divination',
+          stock_code: stockData.symbol,
+          stock_name: stockData.name,
+          time_period: divTimePeriod,
+          user_name: userName,
+          result: JSON.stringify(response.data)
+        });
+      } catch (e) {
+        console.error('Failed to save history:', e);
+      }
     } catch (error) {
       console.error('Divination failed:', error);
     } finally {
@@ -198,6 +237,30 @@ export default function StockDetailPage() {
               </div>
             </div>
             <div className="flex gap-2">
+              <Button
+                onClick={async () => {
+                  try {
+                    await addToWatchlist(getClientId(), {
+                      symbol: stockData.symbol,
+                      name: stockData.name,
+                      market_type: stockData.market_type,
+                      added_at: new Date().toISOString()
+                    });
+                    toast.success(`已添加 ${stockData.name} 到自选股`);
+                  } catch (error) {
+                    if (error.response?.data?.message === 'Already in watchlist') {
+                      toast.info('已在自选股中');
+                    } else {
+                      toast.error('添加失败');
+                    }
+                  }
+                }}
+                className="bg-transparent text-[#f0a500] border border-[#f0a500] hover:bg-[#f0a500]/10"
+                data-testid="add-watchlist-btn"
+              >
+                <Heart className="w-4 h-4 mr-1" />
+                自选
+              </Button>
               <Button
                 onClick={() => { setActiveTab('ai'); }}
                 className={`${activeTab === 'ai' ? 'bg-[#00f0ff]/20 text-[#00f0ff] border-[#00f0ff]' : 'bg-transparent text-[#a1a1aa]'} border`}
