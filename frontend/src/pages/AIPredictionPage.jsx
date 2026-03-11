@@ -1,13 +1,16 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Search, Loader2, TrendingUp, TrendingDown, ArrowLeft } from 'lucide-react';
+import { Sparkles, Search, Loader2, TrendingUp, TrendingDown, ArrowLeft, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Progress } from '../components/ui/progress';
-import { searchStocks, getAIPrediction } from '../services/api';
+import { ScrollArea } from '../components/ui/scroll-area';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../components/ui/collapsible';
+import { searchStocks, getAIPrediction, savePredictionHistory } from '../services/api';
+import { toast } from 'sonner';
 
 const TIME_PERIODS = [
   { value: 'today', label: '今日' },
@@ -19,10 +22,78 @@ const TIME_PERIODS = [
 
 const formatPrice = (value, decimals = 2) => {
   if (value === null || value === undefined) return '--';
-  return value.toLocaleString('en-US', {
+  const num = parseFloat(value);
+  if (isNaN(num)) return value;
+  return num.toLocaleString('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals
   });
+};
+
+// Direction Badge Component
+const DirectionBadge = ({ direction }) => {
+  const config = {
+    bullish: { label: '看涨', icon: TrendingUp, bgClass: 'bg-[#f5222d]/20', textClass: 'text-[#f5222d]' },
+    bearish: { label: '看跌', icon: TrendingDown, bgClass: 'bg-[#00b300]/20', textClass: 'text-[#00b300]' },
+    neutral: { label: '中性', icon: null, bgClass: 'bg-[#8c8c8c]/20', textClass: 'text-[#8c8c8c]' }
+  };
+  const c = config[direction] || config.neutral;
+  const Icon = c.icon;
+  
+  return (
+    <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-sm font-bold ${c.bgClass} ${c.textClass}`}>
+      {Icon && <Icon className="w-5 h-5" />}
+      <span>{c.label}</span>
+    </div>
+  );
+};
+
+// Signal Grade Badge
+const SignalGradeBadge = ({ grade }) => {
+  const colors = {
+    A: 'bg-[#f5222d] text-white',
+    B: 'bg-[#f0a500] text-black',
+    C: 'bg-[#00f0ff] text-black',
+    D: 'bg-[#52525b] text-white'
+  };
+  return (
+    <span className={`px-3 py-1 rounded-sm font-bold text-lg ${colors[grade] || colors.D}`}>
+      {grade}
+    </span>
+  );
+};
+
+// Risk Level Badge
+const RiskLevelBadge = ({ level }) => {
+  const config = {
+    low: { label: '低风险', color: 'bg-[#00b300]' },
+    medium: { label: '中风险', color: 'bg-[#f0a500]' },
+    high: { label: '高风险', color: 'bg-[#f5222d]' },
+    extreme: { label: '极高风险', color: 'bg-[#8b0000]' }
+  };
+  const c = config[level] || config.medium;
+  return (
+    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-sm ${c.color} text-white font-bold`}>
+      <AlertTriangle className="w-4 h-4" />
+      {c.label}
+    </div>
+  );
+};
+
+// Collapsible Section Component
+const CollapsibleSection = ({ title, children, defaultOpen = false }) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <CollapsibleTrigger className="w-full flex items-center justify-between p-3 bg-[#141824] hover:bg-[#1e2330] rounded-sm transition-colors">
+        <span className="text-white font-medium">{title}</span>
+        {isOpen ? <ChevronUp className="w-4 h-4 text-[#a1a1aa]" /> : <ChevronDown className="w-4 h-4 text-[#a1a1aa]" />}
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pt-2">
+        {children}
+      </CollapsibleContent>
+    </Collapsible>
+  );
 };
 
 export default function AIPredictionPage() {
@@ -70,15 +141,32 @@ export default function AIPredictionPage() {
         market_data: {}
       });
       setPrediction(response.data);
+      
+      // Save to history
+      try {
+        await savePredictionHistory({
+          prediction_type: 'ai',
+          stock_code: selectedStock.symbol,
+          stock_name: selectedStock.name,
+          time_period: timePeriod,
+          result: JSON.stringify(response.data)
+        });
+      } catch (e) {
+        console.error('Failed to save history:', e);
+      }
     } catch (error) {
       console.error('Prediction failed:', error);
+      toast.error('预测生成失败，请重试');
     } finally {
       setLoading(false);
     }
   };
 
+  // Check if we have the new format
+  const isNewFormat = prediction?.executive_summary?.headline;
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button
@@ -103,7 +191,7 @@ export default function AIPredictionPage() {
             </div>
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-white font-market">AI智能预测</h1>
-              <p className="text-sm text-[#a1a1aa]">基于量化分析的智能市场预测</p>
+              <p className="text-sm text-[#a1a1aa]">CFA+FRM+PhD级别量化分析</p>
             </div>
           </div>
         </div>
@@ -187,7 +275,7 @@ export default function AIPredictionPage() {
             {loading ? (
               <>
                 <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                量子计算中...
+                正在生成深度研判报告...
               </>
             ) : (
               <>
@@ -205,15 +293,267 @@ export default function AIPredictionPage() {
           <CardContent className="py-12">
             <div className="flex flex-col items-center">
               <div className="quantum-loading mb-6"></div>
-              <p className="text-[#00f0ff] text-lg animate-pulse">量子计算中...</p>
-              <p className="text-[#52525b] text-sm mt-2">正在分析市场数据并生成预测报告</p>
+              <p className="text-[#00f0ff] text-lg animate-pulse">正在生成深度研判报告...</p>
+              <p className="text-[#52525b] text-sm mt-2">博士级量化分析引擎运算中</p>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Prediction Result */}
-      {prediction && !loading && (
+      {/* Prediction Result - New Format */}
+      {prediction && !loading && isNewFormat && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Executive Summary Card */}
+          <Card className="bg-[#0a0e17] border-[#00f0ff]/30">
+            <CardHeader className="border-b border-[#2a2f3e]">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-[#00f0ff]" />
+                  研究报告摘要
+                </CardTitle>
+                <SignalGradeBadge grade={prediction.executive_summary?.signal_grade} />
+              </div>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-6">
+              {/* Headline */}
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-white mb-4">{prediction.executive_summary?.headline}</h2>
+                <div className="flex items-center justify-center gap-6 flex-wrap">
+                  <DirectionBadge direction={prediction.executive_summary?.direction} />
+                  <div className="text-center">
+                    <span className="text-xs text-[#52525b] block">综合评分</span>
+                    <span className="text-3xl font-bold text-[#00f0ff]">{prediction.executive_summary?.composite_score}</span>
+                    <span className="text-[#52525b]">/10</span>
+                  </div>
+                  <div className="text-center">
+                    <span className="text-xs text-[#52525b] block">置信度</span>
+                    <span className="text-2xl font-bold text-[#f0a500]">{prediction.executive_summary?.confidence_level}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Three Line Summary */}
+              <div className="bg-[#141824] p-4 rounded-sm">
+                <p className="text-[#a1a1aa] text-sm leading-relaxed">{prediction.executive_summary?.three_line_summary}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Market Structure */}
+          <Card className="bg-[#141824] border-[#2a2f3e]">
+            <CardHeader>
+              <CardTitle className="text-white text-lg">市场结构分析</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-[#0a0e17] p-3 rounded-sm">
+                  <span className="text-xs text-[#52525b] block">当前阶段</span>
+                  <span className="text-white font-medium">{prediction.market_structure_analysis?.current_phase}</span>
+                </div>
+                <div className="bg-[#0a0e17] p-3 rounded-sm">
+                  <span className="text-xs text-[#52525b] block">周期位置</span>
+                  <span className="text-white font-medium">{prediction.market_structure_analysis?.cycle_position}</span>
+                </div>
+                <div className="bg-[#0a0e17] p-3 rounded-sm">
+                  <span className="text-xs text-[#52525b] block">流动性</span>
+                  <span className="text-white font-medium">{prediction.market_structure_analysis?.liquidity_assessment}</span>
+                </div>
+                <div className="bg-[#0a0e17] p-3 rounded-sm">
+                  <span className="text-xs text-[#52525b] block">波动率</span>
+                  <span className="text-white font-medium">{prediction.market_structure_analysis?.volatility_regime}</span>
+                </div>
+              </div>
+              <div className="bg-[#0a0e17] p-3 rounded-sm">
+                <span className="text-xs text-[#52525b] block mb-1">阶段判断依据</span>
+                <p className="text-[#a1a1aa] text-sm">{prediction.market_structure_analysis?.phase_evidence}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Scenario Analysis - Bull vs Bear */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Bull Scenario */}
+            <Card className="bg-[#0a0e17] border-[#f5222d]/30">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-[#f5222d] flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5" />
+                  看多情景
+                  <span className="ml-auto text-2xl font-bold">{prediction.scenario_analysis?.bull_scenario?.probability}</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="bg-[#141824] p-3 rounded-sm">
+                  <span className="text-xs text-[#52525b] block mb-1">核心逻辑</span>
+                  <p className="text-[#a1a1aa] text-sm">{prediction.scenario_analysis?.bull_scenario?.core_thesis}</p>
+                </div>
+                <div className="bg-[#141824] p-3 rounded-sm">
+                  <span className="text-xs text-[#52525b] block mb-1">目标价位</span>
+                  <p className="text-[#f5222d] font-mono">{prediction.scenario_analysis?.bull_scenario?.target_levels}</p>
+                </div>
+                <div className="bg-[#141824] p-3 rounded-sm">
+                  <span className="text-xs text-[#52525b] block mb-1">催化剂</span>
+                  <ul className="text-[#a1a1aa] text-sm">
+                    {prediction.scenario_analysis?.bull_scenario?.key_catalysts?.map((c, i) => (
+                      <li key={i}>• {c}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="bg-[#f5222d]/10 border border-[#f5222d]/30 p-3 rounded-sm">
+                  <span className="text-xs text-[#f5222d] block mb-1">失效条件</span>
+                  <p className="text-[#a1a1aa] text-sm">{prediction.scenario_analysis?.bull_scenario?.invalidation_condition}</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Bear Scenario */}
+            <Card className="bg-[#0a0e17] border-[#00b300]/30">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-[#00b300] flex items-center gap-2">
+                  <TrendingDown className="w-5 h-5" />
+                  看空情景
+                  <span className="ml-auto text-2xl font-bold">{prediction.scenario_analysis?.bear_scenario?.probability}</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="bg-[#141824] p-3 rounded-sm">
+                  <span className="text-xs text-[#52525b] block mb-1">核心逻辑</span>
+                  <p className="text-[#a1a1aa] text-sm">{prediction.scenario_analysis?.bear_scenario?.core_thesis}</p>
+                </div>
+                <div className="bg-[#141824] p-3 rounded-sm">
+                  <span className="text-xs text-[#52525b] block mb-1">目标价位</span>
+                  <p className="text-[#00b300] font-mono">{prediction.scenario_analysis?.bear_scenario?.target_levels}</p>
+                </div>
+                <div className="bg-[#141824] p-3 rounded-sm">
+                  <span className="text-xs text-[#52525b] block mb-1">催化剂</span>
+                  <ul className="text-[#a1a1aa] text-sm">
+                    {prediction.scenario_analysis?.bear_scenario?.key_catalysts?.map((c, i) => (
+                      <li key={i}>• {c}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="bg-[#00b300]/10 border border-[#00b300]/30 p-3 rounded-sm">
+                  <span className="text-xs text-[#00b300] block mb-1">失效条件</span>
+                  <p className="text-[#a1a1aa] text-sm">{prediction.scenario_analysis?.bear_scenario?.invalidation_condition}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Time Segmented Forecast */}
+          <Card className="bg-[#141824] border-[#2a2f3e]">
+            <CardHeader>
+              <CardTitle className="text-white text-lg">分时段预测</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {prediction.time_segmented_forecast?.map((segment, index) => (
+                  <div key={index} className="bg-[#0a0e17] p-4 rounded-sm border border-[#2a2f3e]">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-white font-medium">{segment.period_label}</span>
+                      <DirectionBadge direction={segment.directional_bias} />
+                    </div>
+                    <p className="text-[#a1a1aa] text-sm mb-2">{segment.key_price_behavior}</p>
+                    <p className="text-[#52525b] text-xs">{segment.tactical_note}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Risk Assessment */}
+          <Card className="bg-[#141824] border-[#2a2f3e]">
+            <CardHeader>
+              <CardTitle className="text-white text-lg flex items-center justify-between">
+                <span>风险评估</span>
+                <RiskLevelBadge level={prediction.risk_assessment?.overall_risk_level} />
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-[#0a0e17] p-4 rounded-sm">
+                  <span className="text-xs text-[#52525b] block mb-2">风险评分</span>
+                  <div className="flex items-center gap-3">
+                    <Progress value={parseInt(prediction.risk_assessment?.risk_score || 5) * 10} className="h-3" />
+                    <span className="text-white font-mono">{prediction.risk_assessment?.risk_score}/10</span>
+                  </div>
+                </div>
+                <div className="bg-[#0a0e17] p-4 rounded-sm">
+                  <span className="text-xs text-[#52525b] block mb-2">风险收益比</span>
+                  <p className="text-white text-sm">{prediction.risk_assessment?.risk_reward_ratio}</p>
+                </div>
+              </div>
+              <div className="bg-[#0a0e17] p-4 rounded-sm">
+                <span className="text-xs text-[#52525b] block mb-2">系统性风险</span>
+                {prediction.risk_assessment?.systematic_risks?.map((risk, i) => (
+                  <div key={i} className="flex items-center justify-between py-1 border-b border-[#2a2f3e] last:border-0">
+                    <span className="text-[#a1a1aa] text-sm">{risk.risk}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[#52525b] text-xs">概率: {risk.probability}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded ${risk.impact === '高' ? 'bg-[#f5222d]/20 text-[#f5222d]' : risk.impact === '中' ? 'bg-[#f0a500]/20 text-[#f0a500]' : 'bg-[#00b300]/20 text-[#00b300]'}`}>
+                        {risk.impact}影响
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-[#f5222d]/10 border border-[#f5222d]/30 p-4 rounded-sm">
+                <span className="text-xs text-[#f5222d] block mb-1">⚠️ 尾部风险情景</span>
+                <p className="text-[#a1a1aa] text-sm">{prediction.risk_assessment?.tail_risk_scenario}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Professional Narrative */}
+          <Card className="bg-[#141824] border-[#2a2f3e]">
+            <CardHeader>
+              <CardTitle className="text-white text-lg">专业研究报告</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Opening - Always visible */}
+              <div className="bg-[#0a0e17] p-4 rounded-sm">
+                <span className="text-[#00f0ff] text-xs font-medium block mb-2">宏观背景</span>
+                <p className="text-[#a1a1aa] text-sm leading-relaxed">{prediction.professional_narrative?.opening_paragraph}</p>
+              </div>
+
+              {/* Collapsible sections */}
+              <CollapsibleSection title="技术面深度分析">
+                <div className="bg-[#0a0e17] p-4 rounded-sm">
+                  <p className="text-[#a1a1aa] text-sm leading-relaxed">{prediction.professional_narrative?.technical_narrative}</p>
+                </div>
+              </CollapsibleSection>
+
+              <CollapsibleSection title="基本面研判">
+                <div className="bg-[#0a0e17] p-4 rounded-sm">
+                  <p className="text-[#a1a1aa] text-sm leading-relaxed">{prediction.professional_narrative?.fundamental_narrative}</p>
+                </div>
+              </CollapsibleSection>
+
+              <CollapsibleSection title="综合研判">
+                <div className="bg-[#0a0e17] p-4 rounded-sm">
+                  <p className="text-[#a1a1aa] text-sm leading-relaxed">{prediction.professional_narrative?.synthesis_paragraph}</p>
+                </div>
+              </CollapsibleSection>
+
+              <CollapsibleSection title="前瞻指引" defaultOpen={true}>
+                <div className="bg-[#00f0ff]/10 border border-[#00f0ff]/30 p-4 rounded-sm">
+                  <p className="text-[#a1a1aa] text-sm leading-relaxed">{prediction.professional_narrative?.forward_guidance}</p>
+                </div>
+              </CollapsibleSection>
+            </CardContent>
+          </Card>
+
+          {/* Disclaimer */}
+          <div className="bg-[#1e2330] border border-[#2a2f3e] rounded-sm p-4">
+            <p className="text-xs text-[#52525b] text-center">{prediction.disclaimer}</p>
+            <p className="text-xs text-[#52525b] text-center mt-2">
+              报告生成时间: {new Date(prediction.timestamp).toLocaleString('zh-CN')}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Old Format Fallback */}
+      {prediction && !loading && !isNewFormat && (
         <Card className="bg-[#0a0e17] border-[#00f0ff]/30 animate-fade-in">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
@@ -222,21 +562,8 @@ export default function AIPredictionPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Direction & Confidence */}
             <div className="flex items-center justify-between p-4 bg-[#141824] rounded-sm">
-              <div className={`px-6 py-3 rounded-sm font-bold text-lg ${
-                prediction.direction === 'bullish' ? 'bg-[#f5222d]/20 text-[#f5222d]' :
-                prediction.direction === 'bearish' ? 'bg-[#00b300]/20 text-[#00b300]' :
-                'bg-[#8c8c8c]/20 text-[#8c8c8c]'
-              }`}>
-                {prediction.direction === 'bullish' ? (
-                  <span className="flex items-center gap-2"><TrendingUp className="w-5 h-5" /> 看涨</span>
-                ) : prediction.direction === 'bearish' ? (
-                  <span className="flex items-center gap-2"><TrendingDown className="w-5 h-5" /> 看跌</span>
-                ) : (
-                  '中性'
-                )}
-              </div>
+              <DirectionBadge direction={prediction.direction} />
               <div className="text-right">
                 <span className="text-xs text-[#52525b] block mb-2">置信度</span>
                 <div className="flex items-center gap-3">
@@ -245,66 +572,30 @@ export default function AIPredictionPage() {
                 </div>
               </div>
             </div>
-
-            {/* Target Price Range */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-[#141824] p-4 rounded-sm">
-                <span className="text-xs text-[#52525b] block mb-2">目标价区间</span>
-                <div className="flex items-center gap-2 text-xl font-mono-price">
-                  <span className="text-[#00b300]">{formatPrice(prediction.target_price_range?.low)}</span>
-                  <span className="text-[#52525b]">~</span>
-                  <span className="text-[#f5222d]">{formatPrice(prediction.target_price_range?.high)}</span>
-                </div>
-              </div>
-              <div className="bg-[#141824] p-4 rounded-sm">
-                <span className="text-xs text-[#52525b] block mb-2">支撑位</span>
-                <div className="space-y-1">
-                  {prediction.support_levels?.map((level, i) => (
-                    <span key={i} className="text-[#00b300] font-mono text-lg block">{formatPrice(level)}</span>
-                  ))}
-                </div>
-              </div>
-              <div className="bg-[#141824] p-4 rounded-sm">
-                <span className="text-xs text-[#52525b] block mb-2">压力位</span>
-                <div className="space-y-1">
-                  {prediction.resistance_levels?.map((level, i) => (
-                    <span key={i} className="text-[#f5222d] font-mono text-lg block">{formatPrice(level)}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Analysis */}
             <div className="bg-[#141824] p-4 rounded-sm">
               <span className="text-xs text-[#52525b] block mb-2">详细分析</span>
               <p className="text-[#a1a1aa] leading-relaxed">{prediction.analysis}</p>
             </div>
-
-            {/* Suggestions */}
             <div className="bg-[#141824] p-4 rounded-sm">
               <span className="text-xs text-[#52525b] block mb-2">操作建议</span>
               <p className="text-white leading-relaxed">{prediction.suggestions}</p>
             </div>
-
-            {/* Risk Warning */}
             <div className="bg-[#f5222d]/10 border border-[#f5222d]/30 p-4 rounded-sm">
               <span className="text-xs text-[#f5222d] block mb-2">⚠️ 风险提示</span>
               <p className="text-[#a1a1aa] text-sm">{prediction.risk_warning}</p>
             </div>
-
-            <p className="text-xs text-[#52525b] text-center">
-              生成时间: {new Date(prediction.timestamp).toLocaleString('zh-CN')} | 仅供参考，不构成投资建议
-            </p>
           </CardContent>
         </Card>
       )}
 
       {/* Disclaimer */}
-      <div className="bg-[#1e2330] border border-[#2a2f3e] rounded-sm p-4">
-        <p className="text-xs text-[#52525b] text-center">
-          ⚠️ 免责声明：本平台提供的所有AI预测内容均仅供参考研究，不构成任何投资建议。投资有风险，入市须谨慎。
-        </p>
-      </div>
+      {!prediction && (
+        <div className="bg-[#1e2330] border border-[#2a2f3e] rounded-sm p-4">
+          <p className="text-xs text-[#52525b] text-center">
+            ⚠️ 免责声明：本平台提供的所有AI预测内容均仅供参考研究，不构成任何投资建议。投资有风险，入市须谨慎。
+          </p>
+        </div>
+      )}
     </div>
   );
 }

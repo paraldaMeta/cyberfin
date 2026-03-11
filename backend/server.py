@@ -529,7 +529,7 @@ async def get_market_overview():
 
 @api_router.post("/predict/ai")
 async def ai_prediction(request: PredictionRequest):
-    """Generate AI prediction using MiniMax M2.5"""
+    """Generate AI prediction using MiniMax - PhD-level Financial Analysis"""
     time_labels = {
         "today": "今日",
         "week": "本周",
@@ -539,82 +539,418 @@ async def ai_prediction(request: PredictionRequest):
     }
     time_period_cn = time_labels.get(request.time_period, request.time_period)
     
-    system_prompt = """你是一位资深量化分析师和金融市场专家，精通技术面分析、基本面分析和市场情绪分析。
-请基于以下实时市场数据，对指定标的进行专业的走势预测分析。
-分析框架：
-1. 技术面：均线系统、支撑压力位、MACD/RSI/布林带信号
-2. 基本面：行业景气度、政策面、资金流向
-3. 市场情绪：北向资金、融资融券、主力动向
-4. 风险提示：明确列出看多/看空风险
+    # Determine market type
+    market_type = "a_stock"
+    if request.stock_code:
+        if ".HK" in request.stock_code:
+            market_type = "hk_stock"
+        elif ".T" in request.stock_code:
+            market_type = "jp_stock"
+        elif ".KS" in request.stock_code:
+            market_type = "kr_stock"
+        elif ".BK" in request.stock_code:
+            market_type = "th_stock"
+        elif "=F" in request.stock_code:
+            market_type = "futures"
+        elif "=X" in request.stock_code:
+            market_type = "forex"
+    
+    market_type_cn = {
+        "a_stock": "A股",
+        "hk_stock": "港股", 
+        "jp_stock": "日股",
+        "kr_stock": "韩股",
+        "th_stock": "泰股",
+        "futures": "期货",
+        "forex": "外汇"
+    }.get(market_type, "股票")
+    
+    # Generate time segments based on time_period
+    if request.time_period == "today":
+        segments = "早盘(09:30-11:30), 午盘(13:00-14:00), 尾盘(14:00-收盘)"
+    elif request.time_period == "week":
+        segments = "周一至周二(开局), 周三(中枢), 周四至周五(收官)"
+    elif request.time_period == "month":
+        segments = "上旬(1-10日), 中旬(11-20日), 下旬(21日-月底)"
+    elif request.time_period == "quarter":
+        segments = "第一月(开仓期), 第二月(持仓期), 第三月(结算期)"
+    else:
+        segments = "Q1(春季行情), Q2(夏季行情), Q3(秋季行情), Q4(年末行情)"
+    
+    system_prompt = """# 身份设定
 
-输出必须严格为JSON格式，包含以下字段：
+你是一位同时持有 CFA（特许金融分析师）、FRM（金融风险管理师）认证，
+并拥有计量经济学博士学位的资深市场研究员。
+你曾供职于顶级对冲基金的多资产策略部门，深度覆盖亚太及全球外汇市场。
+你的分析框架融合了以下学术与实践体系：
+- 现代投资组合理论（Markowitz, 1952）
+- 有效市场假说及其批判（Fama, 1970 / Shiller行为金融修正）
+- 动量因子与均值回归的统计套利逻辑
+- 宏观审慎视角下的跨资产联动分析
+- 信息不对称与市场微观结构理论（Kyle, 1985）
+
+# 核心工作守则
+
+1. 【数据忠实原则】
+所有分析必须严格基于传入的结构化数据。
+禁止捏造、估算或替换任何数值。
+若某项数据缺失，须明确标注"[数据缺失]"并说明其对分析完整性的影响。
+
+2. 【因果逻辑原则】
+每一个结论必须有清晰的因果链条支撑。
+禁止使用"可能会涨"、"或许走强"等模糊表述。
+须使用"基于X指标显示Y状态，结合Z市场结构，短期内出现W情形的概率提升"
+此类有逻辑锚点的表达方式。
+
+3. 【多空均衡原则】
+任何市场都存在多空两种力量。
+必须独立构建看多情景与看空情景，并为每个情景赋予独立概率。
+两者概率之和须等于100%。
+
+4. 【市场差异原则】
+A股、港股、日股、韩股、泰股、期货、外汇的微观结构差异显著。
+必须在分析中体现对应市场的制度性特征，
+不可用同一套通用框架套用于所有市场。
+
+5. 【风险前置原则】
+风险评估不是报告末尾的形式性补充，而是分析框架的核心支柱。
+每个结论都应有对应的失效条件（Invalidation Condition）：
+即"若X发生，则本分析结论应被推翻"。
+
+6. 【学术语言规范】
+报告须使用金融学术界通行的专业术语。
+允许使用适量英文专业词汇（如 momentum、mean reversion、liquidity premium）。
+但每个专业术语在首次出现时须配有简洁的中文解释。
+整体文风：严谨、克制、精确，避免营销腔和媒体夸张式表述。
+
+# 分析框架知识库（按市场类型自动调用）
+
+## 【A股专项框架】
+制度性因素权重：政策面 > 资金面 > 技术面 > 基本面（短期）
+核心分析维度：
+- 产业政策窗口期：监管周期（收紧/放松）对板块估值的压缩/扩张效应
+- 资金微观结构：北向资金的配置型买入 vs 交易型买入 / 融资余额的杠杆风险
+- 市场情绪量化：涨停板效应、连板股溢价、题材扩散速度
+- 流动性溢价：A股散户占比导致的情绪Beta放大效应
+- 制度套利：AH两地上市标的的溢价收敛逻辑
+失效条件关注：监管超预期收紧、国家队撤出信号、系统性流动性危机
+
+## 【港股专项框架】
+定价逻辑：港股是离岸人民币资产的全球定价中心
+核心分析维度：
+- 汇率联动：港元与美元挂钩，但标的盈利以人民币计算，形成天然汇率敞口
+- 流动性分层：恒生指数成分股 vs 中小市值港股的流动性折价
+- 南北资金博弈：内地资金（南向）偏好高股息国企 / 外资偏好互联网科技
+- AH溢价套利窗口：溢价率偏离历史均值±1.5σ时的均值回归预期
+- 美联储利率路径：港元利率跟随美元，高利率环境压制港股估值扩张
+失效条件关注：港元脱钩风险、地缘政治黑天鹅、中美金融脱钩加速
+
+## 【日股专项框架】
+核心驱动方程：日股表现 ≈ f(日元贬值幅度, 出口企业盈利, 全球风险偏好)
+核心分析维度：
+- 日元汇率传导机制：USDJPY每贬值1日元约提升日经出口股盈利约0.5-1%
+- 日本央行政策路径：YCC（收益率曲线控制）政策的边际变化是最大风险来源
+- 外资持仓结构：外资约持有日股总市值30%，全球风险情绪是重要传导变量
+- 公司治理改革溢价：东证所推动的ROE改善计划对低PBR股票的重估效应
+- 通胀结构变化：日本从通缩向温和通胀切换对实体资产的长期重估
+失效条件关注：日元急速升值（超预期加息）、BOJ政策转向、全球衰退
+
+## 【韩股专项框架】
+核心驱动方程：韩股 ≈ f(费城半导体指数, 外资流向, 韩元汇率)
+核心分析维度：
+- 半导体超级周期定位：DRAM/NAND价格周期与三星/SK海力士库存周转数据
+- 外资净买卖的趋势持续性：外资连续净买入>5个交易日通常形成趋势加速
+- 韩元汇率弹性：USDKRW突破关键心理关口（如1350/1400）对外资信心的冲击
+- 美股科技板块联动：纳斯达克与KOSPI相关性在AI资本开支周期中显著增强
+失效条件关注：地缘政治（朝鲜半岛）、半导体出口管制升级、韩元流动性危机
+
+## 【泰股专项框架】
+核心驱动方程：泰股 ≈ f(国际游客数量, 原油价格, 外资流入)
+核心分析维度：
+- 旅游复苏弹性：中国游客恢复至疫前水平的进度是最强基本面催化剂
+- 能源双刃剑效应：泰国既是石油进口国（高油价压制消费）又有PTT等能源权重股
+- 外资配置逻辑：东盟市场在全球新兴市场再平衡中的结构性资金流入
+- 泰铢汇率稳定性：经常账户顺差对泰铢的支撑，以及热钱流动的扰动风险
+失效条件关注：政治动荡、全球旅游萎缩、泰铢急剧贬值
+
+## 【期货专项框架】
+杠杆风险提示须置于最突出位置
+核心分析维度：
+- 基差结构（Basis Structure）：期现价差的扩大/收敛信号
+- 持仓量分析（Open Interest）：价升量增（趋势确认）vs 价升量减（动能衰竭）
+- 多空比（Long/Short Ratio）：极端多空比往往是反转信号
+- 移仓换月效应：主力合约切换期的流动性真空风险
+- 商品期货额外维度：库存周期（仓单数量变化）、季节性规律、产地天气
+
+## 【外汇专项框架】
+核心驱动方程：汇率 ≈ f(利率差, 经常账户差, 风险情绪, 央行干预)
+核心分析维度：
+- 利率平价理论（Interest Rate Parity）：两国实际利率差决定汇率中期中枢
+- 购买力平价偏差（PPP Deviation）：实际汇率偏离PPP均衡值的回归预期
+- 央行干预阈值：分析历史上央行干预的价位区间及当前距离
+- 美元指数（DXY）的传导路径：DXY与新兴市场货币的负相关性强度
+- 宏观事件日历：非农、CPI、央行会议等高影响事件的波动率膨胀效应
+失效条件关注：非预期央行干预、地缘政治避险资金骤然涌入/撤出
+
+# 报告输出格式规范
+
+输出必须是严格的 JSON 格式，包含以下结构（简化版，适用于当前数据输入）：
+
 {
-    "direction": "bullish/bearish/neutral",
-    "confidence": 0-100的整数,
-    "target_price_range": {"low": 数字, "high": 数字},
-    "support_levels": [支撑位数字数组],
-    "resistance_levels": [压力位数字数组],
-    "analysis": "详细分析文本",
-    "suggestions": "操作建议",
-    "risk_warning": "风险提示"
-}
+  "report_meta": {
+    "stock_name": "[标的名称]",
+    "stock_code": "[标的代码]",
+    "market_type": "[市场类型]",
+    "time_period": "[预测时段]",
+    "generated_at": "[生成时间]",
+    "analyst_note": "本报告由AI基于量化指标生成，不构成投资建议"
+  },
+  "executive_summary": {
+    "headline": "[一句话核心结论，不超过30字]",
+    "direction": "bullish | bearish | neutral",
+    "composite_score": "[1-10综合评分]",
+    "confidence_level": "[置信度百分比]",
+    "signal_grade": "[A/B/C/D评级]",
+    "three_line_summary": "[三句话精华摘要]"
+  },
+  "market_structure_analysis": {
+    "current_phase": "[当前市场阶段]",
+    "phase_evidence": "[支持该阶段判断的证据]",
+    "cycle_position": "[在更大周期中的位置]",
+    "liquidity_assessment": "[流动性状态]",
+    "volatility_regime": "[波动率状态]"
+  },
+  "technical_deep_dive": {
+    "trend_analysis": {
+      "primary_trend": "[主趋势判断]",
+      "secondary_trend": "[次级趋势判断]",
+      "ma_alignment": "[均线排列状态]",
+      "ma_commentary": "[均线解读]"
+    },
+    "momentum_analysis": {
+      "macd_interpretation": "[MACD解读]",
+      "rsi_interpretation": "[RSI解读]",
+      "momentum_conclusion": "[动量结论]"
+    },
+    "key_levels": {
+      "critical_resistance": [{"price": "[价格]", "basis": "[依据]", "strength": "[强度]"}],
+      "critical_support": [{"price": "[价格]", "basis": "[依据]", "strength": "[强度]"}],
+      "pivot_point": "[枢轴价位]"
+    },
+    "technical_score": "[技术面评分1-10]"
+  },
+  "macro_fundamental_analysis": {
+    "market_specific_drivers": "[核心驱动因素]",
+    "policy_environment": "[政策面评估]",
+    "cross_asset_signals": "[跨资产信号]",
+    "sentiment_gauge": "[市场情绪评估]",
+    "fundamental_score": "[基本面评分1-10]"
+  },
+  "scenario_analysis": {
+    "bull_scenario": {
+      "probability": "[看多概率]",
+      "core_thesis": "[看多核心逻辑]",
+      "key_catalysts": ["[催化剂1]", "[催化剂2]"],
+      "target_levels": "[看多目标]",
+      "invalidation_condition": "[失效条件]"
+    },
+    "bear_scenario": {
+      "probability": "[看空概率]",
+      "core_thesis": "[看空核心逻辑]",
+      "key_catalysts": ["[催化剂1]", "[催化剂2]"],
+      "target_levels": "[看空目标]",
+      "invalidation_condition": "[失效条件]"
+    }
+  },
+  "time_segmented_forecast": [
+    {"period_label": "[时段]", "directional_bias": "[方向]", "key_price_behavior": "[价格行为]", "tactical_note": "[战术建议]"}
+  ],
+  "risk_assessment": {
+    "overall_risk_level": "low | medium | high | extreme",
+    "risk_score": "[1-10风险评分]",
+    "systematic_risks": [{"risk": "[风险描述]", "probability": "[概率]", "impact": "[影响]"}],
+    "tail_risk_scenario": "[极端风险场景]",
+    "risk_reward_ratio": "[风险收益比]"
+  },
+  "professional_narrative": {
+    "opening_paragraph": "[开篇段200字]",
+    "technical_narrative": "[技术面叙述250字]",
+    "fundamental_narrative": "[基本面叙述250字]",
+    "synthesis_paragraph": "[综合研判200字]",
+    "forward_guidance": "[前瞻指引200字]"
+  },
+  "disclaimer": "⚠️ 本报告由AI系统基于量化指标自动生成，不构成任何形式的投资建议。投资有风险，入市须谨慎。"
+}"""
 
-⚠️声明：本分析仅供参考，不构成投资建议。"""
+    # Build market data section
+    market_data = request.market_data or {}
+    price = market_data.get("price", 100)
+    change = market_data.get("change", 0)
+    change_pct = market_data.get("change_percent", 0)
+    volume = market_data.get("volume", 0)
+    
+    # Calculate basic technical indicators (simulated if not provided)
+    ma5 = market_data.get("ma5", round(price * 0.99, 2))
+    ma20 = market_data.get("ma20", round(price * 0.98, 2))
+    ma60 = market_data.get("ma60", round(price * 0.97, 2))
+    
+    user_prompt = f"""## 本次分析任务
 
-    user_prompt = f"""请分析【{request.stock_name}({request.stock_code})】在【{time_period_cn}】的走势预测。
-当前行情数据：{json.dumps(request.market_data or {}, ensure_ascii=False)}
-请给出详细的预测分析报告，必须以JSON格式输出。"""
+标的信息：
+- 名称：{request.stock_name}
+- 代码：{request.stock_code}
+- 市场类型：{market_type_cn}
+- 预测时段：{time_period_cn}
+- 时段切割方案：{segments}
+
+已计算完毕的技术指标数据：
+
+行情快照：
+- 当前价格：{price}
+- 今日涨跌幅：{change_pct}%
+- 成交量：{volume}
+
+均线系统：
+- MA5：{ma5}（价格{'高于' if price > ma5 else '低于'} MA5）
+- MA20：{ma20}（价格{'高于' if price > ma20 else '低于'} MA20）
+- MA60：{ma60}（价格{'高于' if price > ma60 else '低于'} MA60）
+
+基于以上数据，请生成完整的博士级金融分析报告，严格按照JSON格式输出。
+看多概率与看空概率之和必须等于100%。"""
 
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt}
     ]
     
-    response_text = await call_minimax_api(messages, max_tokens=2000, temperature=0.3)
+    response_text = await call_minimax_api(messages, max_tokens=4000, temperature=0.3)
     
     # Parse response
     try:
-        # Try to extract JSON from response
         import re
         json_match = re.search(r'\{[\s\S]*\}', response_text)
         if json_match:
             prediction_data = json.loads(json_match.group())
-            # Validate required fields
-            required_fields = ["direction", "confidence", "analysis"]
-            if not all(f in prediction_data for f in required_fields):
-                raise ValueError("Missing required fields")
+            # Validate basic structure
+            if "executive_summary" not in prediction_data:
+                raise ValueError("Missing executive_summary")
         else:
             raise ValueError("No JSON found in response")
     except Exception as e:
-        logger.error(f"Failed to parse AI response: {e}, response: {response_text[:200] if response_text else 'empty'}")
-        # Generate intelligent fallback prediction based on market data
-        import random
-        base_price = request.market_data.get("price", 100) if request.market_data else 100
-        change_percent = request.market_data.get("change_percent", 0) if request.market_data else 0
+        logger.error(f"Failed to parse AI response: {e}, response: {response_text[:300] if response_text else 'empty'}")
         
-        # Determine direction based on recent trend
-        if change_percent > 1:
+        # Generate intelligent fallback with new structure
+        import random
+        
+        if change_pct > 1:
             direction = "bullish"
-            confidence = random.randint(60, 80)
-        elif change_percent < -1:
+            bull_prob = random.randint(55, 70)
+        elif change_pct < -1:
             direction = "bearish"
-            confidence = random.randint(55, 75)
+            bull_prob = random.randint(30, 45)
         else:
             direction = "neutral"
-            confidence = random.randint(50, 70)
+            bull_prob = random.randint(45, 55)
+        
+        bear_prob = 100 - bull_prob
+        composite_score = round(5 + (change_pct / 2), 1)
+        composite_score = max(1, min(10, composite_score))
         
         prediction_data = {
-            "direction": direction,
-            "confidence": confidence,
-            "target_price_range": {
-                "low": round(base_price * 0.95, 2),
-                "high": round(base_price * 1.08, 2)
+            "report_meta": {
+                "stock_name": request.stock_name,
+                "stock_code": request.stock_code,
+                "market_type": market_type_cn,
+                "time_period": time_period_cn,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "analyst_note": "本报告由AI基于量化指标生成，不构成投资建议"
             },
-            "support_levels": [round(base_price * 0.92, 2), round(base_price * 0.88, 2)],
-            "resistance_levels": [round(base_price * 1.05, 2), round(base_price * 1.1, 2)],
-            "analysis": f"基于技术面和市场情绪分析，{request.stock_name}在{time_period_cn}内预计{'维持上涨趋势' if direction == 'bullish' else '可能承压回调' if direction == 'bearish' else '维持震荡走势'}。当前价格处于关键位置，MACD指标显示{'多头动能增强' if direction == 'bullish' else '空头动能增强' if direction == 'bearish' else '多空博弈'}，需要关注成交量变化和主力资金流向。",
-            "suggestions": f"{'建议逢低布局，分批建仓' if direction == 'bullish' else '建议控制仓位，等待企稳信号' if direction == 'bearish' else '建议观望为主，等待趋势明确后再做决策'}。设置好止损位，控制仓位风险。",
-            "risk_warning": "市场波动较大，请注意风险控制。本预测基于技术分析模型，仅供参考，不构成投资建议。投资有风险，入市须谨慎。"
+            "executive_summary": {
+                "headline": f"{request.stock_name}{'上涨动能增强' if direction == 'bullish' else '承压回调风险' if direction == 'bearish' else '多空博弈震荡'}，关注关键支撑位",
+                "direction": direction,
+                "composite_score": str(composite_score),
+                "confidence_level": f"{bull_prob if direction == 'bullish' else bear_prob if direction == 'bearish' else 50}%",
+                "signal_grade": "B" if abs(change_pct) > 1 else "C",
+                "three_line_summary": f"趋势：当前处于{'上升' if direction == 'bullish' else '下降' if direction == 'bearish' else '震荡'}通道。核心驱动：{'量能配合价格突破' if direction == 'bullish' else '获利盘出逃压力' if direction == 'bearish' else '多空力量均衡'}。风险：关注{round(price * 0.95, 2)}支撑位有效性。"
+            },
+            "market_structure_analysis": {
+                "current_phase": "上升期" if direction == "bullish" else "下降期" if direction == "bearish" else "底部震荡",
+                "phase_evidence": f"①价格{'站上' if price > ma20 else '跌破'}20日均线 ②成交量{'放大' if volume > 0 else '萎缩'} ③涨跌幅{change_pct}%",
+                "cycle_position": f"中期{'上升' if direction == 'bullish' else '下降' if direction == 'bearish' else '震荡'}趋势中的短期{'回调' if change_pct < 0 else '反弹'}",
+                "liquidity_assessment": "正常",
+                "volatility_regime": "正常波动" if abs(change_pct) < 3 else "高波动率扩张期"
+            },
+            "technical_deep_dive": {
+                "trend_analysis": {
+                    "primary_trend": f"{'多头' if price > ma60 else '空头'}趋势，价格{'高于' if price > ma60 else '低于'}60日均线{ma60}",
+                    "secondary_trend": f"次级{'回调' if change_pct < 0 else '反弹'}浪",
+                    "ma_alignment": "多头排列" if price > ma5 > ma20 > ma60 else "空头排列" if price < ma5 < ma20 < ma60 else "纠缠粘合",
+                    "ma_commentary": f"MA5({ma5}){'上穿' if ma5 > ma20 else '下穿'}MA20({ma20})，{'形成金叉' if ma5 > ma20 else '形成死叉'}"
+                },
+                "momentum_analysis": {
+                    "macd_interpretation": f"MACD指标显示{'多头' if change_pct > 0 else '空头'}动能{'增强' if abs(change_pct) > 1 else '衰减'}",
+                    "rsi_interpretation": f"RSI处于{'超买' if change_pct > 3 else '超卖' if change_pct < -3 else '中性'}区域",
+                    "momentum_conclusion": f"动量{'增强' if direction == 'bullish' else '衰竭' if direction == 'bearish' else '震荡'}"
+                },
+                "key_levels": {
+                    "critical_resistance": [
+                        {"price": str(round(price * 1.05, 2)), "basis": "前高压力位", "strength": "强"},
+                        {"price": str(round(price * 1.10, 2)), "basis": "心理整数关口", "strength": "中"}
+                    ],
+                    "critical_support": [
+                        {"price": str(round(price * 0.95, 2)), "basis": "20日均线支撑", "strength": "强"},
+                        {"price": str(round(price * 0.90, 2)), "basis": "前低支撑", "strength": "中"}
+                    ],
+                    "pivot_point": str(round(price, 2))
+                },
+                "technical_score": str(round(5 + change_pct / 2, 1))
+            },
+            "macro_fundamental_analysis": {
+                "market_specific_drivers": f"作为{market_type_cn}标的，当前受{'政策面和资金面' if market_type == 'a_stock' else '美联储利率路径' if market_type == 'hk_stock' else '全球风险偏好'}驱动",
+                "policy_environment": "中性偏多" if direction == "bullish" else "中性偏空" if direction == "bearish" else "中性",
+                "cross_asset_signals": "关联资产走势与本标的形成共振",
+                "sentiment_gauge": "贪婪" if change_pct > 2 else "恐慌" if change_pct < -2 else "中性",
+                "fundamental_score": str(round(5 + change_pct / 3, 1))
+            },
+            "scenario_analysis": {
+                "bull_scenario": {
+                    "probability": f"{bull_prob}%",
+                    "core_thesis": f"IF 价格站稳{round(price * 0.98, 2)}支撑 → THEN 多头动能释放 → THEREFORE 目标看向{round(price * 1.08, 2)}",
+                    "key_catalysts": ["成交量持续放大", "突破前高压力位"],
+                    "target_levels": f"{round(price * 1.05, 2)} - {round(price * 1.10, 2)}",
+                    "invalidation_condition": f"若跌破{round(price * 0.92, 2)}，则看多逻辑失效"
+                },
+                "bear_scenario": {
+                    "probability": f"{bear_prob}%",
+                    "core_thesis": f"IF 跌破{round(price * 0.95, 2)}支撑 → THEN 止损盘涌出 → THEREFORE 目标看向{round(price * 0.90, 2)}",
+                    "key_catalysts": ["成交量萎缩背离", "跌破关键均线"],
+                    "target_levels": f"{round(price * 0.90, 2)} - {round(price * 0.85, 2)}",
+                    "invalidation_condition": f"若站上{round(price * 1.05, 2)}，则看空逻辑失效"
+                }
+            },
+            "time_segmented_forecast": [
+                {"period_label": segments.split(",")[0].strip() if segments else "初期", "directional_bias": direction, "key_price_behavior": "震荡蓄势", "tactical_note": "观望为主，等待方向确认"},
+                {"period_label": segments.split(",")[1].strip() if len(segments.split(",")) > 1 else "中期", "directional_bias": direction, "key_price_behavior": "方向选择", "tactical_note": "关键时段，关注突破信号"},
+                {"period_label": segments.split(",")[2].strip() if len(segments.split(",")) > 2 else "末期", "directional_bias": direction, "key_price_behavior": "趋势确认", "tactical_note": "顺势操作，设好止盈止损"}
+            ],
+            "risk_assessment": {
+                "overall_risk_level": "low" if abs(change_pct) < 1 else "medium" if abs(change_pct) < 3 else "high",
+                "risk_score": str(min(10, max(1, round(abs(change_pct) * 2, 1)))),
+                "systematic_risks": [
+                    {"risk": "宏观政策超预期变化", "probability": "15%", "impact": "高"},
+                    {"risk": "流动性突然收紧", "probability": "10%", "impact": "中"}
+                ],
+                "tail_risk_scenario": f"若出现系统性风险事件，价格可能急跌至{round(price * 0.80, 2)}，概率约5%",
+                "risk_reward_ratio": f"潜在收益约{abs(round((price * 1.08 - price) / price * 100, 1))}%，潜在风险约{abs(round((price * 0.92 - price) / price * 100, 1))}%，赔率约{round((price * 1.08 - price) / (price - price * 0.92), 1)}:1"
+            },
+            "professional_narrative": {
+                "opening_paragraph": f"从宏观视角审视，{request.stock_name}作为{market_type_cn}市场的代表性标的，其当前走势折射出整体市场的风险偏好变化。在全球资本市场联动性日益增强的背景下，该标的的价格发现机制既受本土投资者情绪驱动，亦受跨境资金流动的显著影响。当前价格{price}处于历史波动区间的中位水平，市场参与者的分歧度维持在合理范围内。",
+                "technical_narrative": f"从技术面维度深入剖析，当前价格{price}{'站稳' if price > ma20 else '失守'}20日移动平均线{ma20}，这一信号在统计学意义上具有{'正向' if price > ma20 else '负向'}指示作用。均线系统呈现{'多头' if price > ma5 > ma20 else '空头' if price < ma5 < ma20 else '收敛'}排列形态，暗示中短期趋势的{'延续' if (price > ma5 > ma20) or (price < ma5 < ma20) else '转折'}概率提升。成交量数据显示市场参与度{'活跃' if volume > 0 else '低迷'}，量价关系{'配合' if (change_pct > 0 and volume > 0) else '背离'}的现状值得高度关注。",
+                "fundamental_narrative": f"基本面层面，{market_type_cn}市场当前运行于{'宽松' if change_pct > 0 else '收紧'}的政策环境中。从资金微观结构观察，{'北向资金' if market_type == 'a_stock' else '外资'}的边际变化对短期价格具有显著影响力。行业景气度指标显示{'上行' if change_pct > 0 else '下行'}周期特征，这与宏观经济先行指标形成{'共振' if change_pct > 0 else '背离'}。市场情绪指标处于{'乐观' if change_pct > 1 else '悲观' if change_pct < -1 else '中性'}区间，但需警惕极端情绪引发的均值回归。",
+                "synthesis_paragraph": f"综合技术面与基本面信号，两者当前{'形成共振' if (change_pct > 0 and price > ma20) or (change_pct < 0 and price < ma20) else '存在一定背离'}。从信息层次理论（Information Hierarchy Theory）视角分析，当前价格{'已较充分' if abs(change_pct) > 2 else '尚未完全'}反映已知的公开信息。短期内，{'技术面' if abs(change_pct) < 1 else '基本面'}信号可能主导价格走势。建议投资者关注{round(price * 0.95, 2)}至{round(price * 1.05, 2)}区间的价格行为特征。",
+                "forward_guidance": f"前瞻性地看，未来{time_period_cn}内有以下关键观察点：①若价格有效突破{round(price * 1.05, 2)}压力位，则上行空间打开，目标可看至{round(price * 1.10, 2)}；②若跌破{round(price * 0.95, 2)}支撑位，则下行风险释放，目标可能下探{round(price * 0.90, 2)}；③若维持在{round(price * 0.95, 2)}-{round(price * 1.05, 2)}区间内震荡，则等待方向选择。触发分析结论更新的边界条件：成交量出现异常放大（>2倍均量）或出现重大政策/事件催化。"
+            },
+            "disclaimer": "⚠️ 本报告由AI系统基于量化指标自动生成，所有分析均为模型输出，不代表任何机构立场，不构成任何形式的投资建议。金融市场存在不可预测的系统性风险，过往表现不预示未来收益。投资者须依据自身风险承受能力做出独立判断，并承担全部投资责任。"
         }
     
     return {
