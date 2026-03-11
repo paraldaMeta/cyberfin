@@ -9,7 +9,7 @@ import time
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://predictix-asia.preview.emergentagent.com"
+    BASE_URL = "https://market-predict-asia.preview.emergentagent.com"
 
 class TestHealthAndRoot:
     """Basic health check tests"""

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, TrendingUp, TrendingDown, Sparkles, Star, RefreshCw, Loader2, Heart, BarChart2, Activity } from 'lucide-react';
+import { ArrowLeft, TrendingUp, TrendingDown, Sparkles, Star, RefreshCw, Loader2, Heart, BarChart2, Activity, Settings2, Eye, EyeOff } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -10,10 +10,11 @@ import { Label } from '../components/ui/label';
 import { Skeleton } from '../components/ui/skeleton';
 import { Progress } from '../components/ui/progress';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, ComposedChart, Bar } from 'recharts';
+import { Switch } from '../components/ui/switch';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, ComposedChart, Bar, ReferenceLine } from 'recharts';
 import { toast } from 'sonner';
 import { getStockDetail, getAIPrediction, getDivinationPrediction, savePredictionHistory, addToWatchlist } from '../services/api';
-import { TechnicalIndicatorsPanel, calculateBollingerData } from '../components/TechnicalIndicatorsChart';
+import { TechnicalIndicatorsPanel, calculateBollingerData, MACDChart, RSIChart } from '../components/TechnicalIndicatorsChart';
 import { useLanguage } from '../i18n';
 
 // Get client ID for watchlist
@@ -78,8 +79,12 @@ export default function StockDetailPage() {
   const [historical, setHistorical] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('ai');
-  const [showIndicators, setShowIndicators] = useState(true);
+  
+  // Technical Indicator States
+  const [showMACD, setShowMACD] = useState(true);
+  const [showRSI, setShowRSI] = useState(true);
   const [showBollinger, setShowBollinger] = useState(false);
+  const [showIndicatorPanel, setShowIndicatorPanel] = useState(true);
   
   // AI Prediction State
   const [aiTimePeriod, setAiTimePeriod] = useState('today');
@@ -287,15 +292,64 @@ export default function StockDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Chart */}
+      {/* Chart with Technical Indicators */}
       <Card className="bg-[#141824] border-[#2a2f3e]">
         <CardHeader>
-          <CardTitle className="text-white text-lg">历史走势</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-white text-lg">{t('stock.chart')}</CardTitle>
+            <div className="flex items-center gap-4">
+              {/* Indicator Controls */}
+              <div className="flex items-center gap-3 text-xs">
+                <button
+                  onClick={() => setShowBollinger(!showBollinger)}
+                  className={`px-2 py-1 rounded-sm border transition-colors ${
+                    showBollinger 
+                      ? 'border-[#f0a500] text-[#f0a500] bg-[#f0a500]/10' 
+                      : 'border-[#2a2f3e] text-[#52525b] hover:border-[#52525b]'
+                  }`}
+                  data-testid="toggle-bollinger"
+                >
+                  {t('indicator.bollinger')}
+                </button>
+                <button
+                  onClick={() => setShowMACD(!showMACD)}
+                  className={`px-2 py-1 rounded-sm border transition-colors ${
+                    showMACD 
+                      ? 'border-[#00f0ff] text-[#00f0ff] bg-[#00f0ff]/10' 
+                      : 'border-[#2a2f3e] text-[#52525b] hover:border-[#52525b]'
+                  }`}
+                  data-testid="toggle-macd"
+                >
+                  {t('indicator.macd')}
+                </button>
+                <button
+                  onClick={() => setShowRSI(!showRSI)}
+                  className={`px-2 py-1 rounded-sm border transition-colors ${
+                    showRSI 
+                      ? 'border-[#9333ea] text-[#9333ea] bg-[#9333ea]/10' 
+                      : 'border-[#2a2f3e] text-[#52525b] hover:border-[#52525b]'
+                  }`}
+                  data-testid="toggle-rsi"
+                >
+                  {t('indicator.rsi')}
+                </button>
+              </div>
+              <button
+                onClick={() => setShowIndicatorPanel(!showIndicatorPanel)}
+                className="text-[#52525b] hover:text-white flex items-center gap-1"
+                data-testid="toggle-indicator-panel"
+              >
+                {showIndicatorPanel ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <span className="text-xs">{t('stock.indicators')}</span>
+              </button>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Main Price Chart */}
           <div className="h-64 md:h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={historical.slice(-60)}>
+              <ComposedChart data={showBollinger ? calculateBollingerData(historical.slice(-60)) : historical.slice(-60)}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2f3e" />
                 <XAxis 
                   dataKey="date" 
@@ -309,6 +363,24 @@ export default function StockDetailPage() {
                   domain={['auto', 'auto']}
                 />
                 <Tooltip content={<CustomTooltip />} />
+                
+                {/* Bollinger Bands */}
+                {showBollinger && (
+                  <>
+                    <Area 
+                      type="monotone" 
+                      dataKey="upper" 
+                      stroke="none"
+                      fill="#f0a500"
+                      fillOpacity={0.05}
+                    />
+                    <Line type="monotone" dataKey="upper" stroke="#f0a500" dot={false} strokeWidth={1} strokeDasharray="3 3" />
+                    <Line type="monotone" dataKey="mid" stroke="#f0a500" dot={false} strokeWidth={1} />
+                    <Line type="monotone" dataKey="lower" stroke="#f0a500" dot={false} strokeWidth={1} strokeDasharray="3 3" />
+                  </>
+                )}
+                
+                {/* Price Line */}
                 <Area 
                   type="monotone" 
                   dataKey="close" 
@@ -325,6 +397,17 @@ export default function StockDetailPage() {
               </ComposedChart>
             </ResponsiveContainer>
           </div>
+          
+          {/* Technical Indicators Panel */}
+          {showIndicatorPanel && (showMACD || showRSI) && (
+            <div className="border-t border-[#2a2f3e] pt-4">
+              <TechnicalIndicatorsPanel 
+                data={historical.slice(-60)} 
+                showMACD={showMACD} 
+                showRSI={showRSI} 
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -569,7 +652,7 @@ export default function StockDetailPage() {
       {/* Disclaimer */}
       <div className="bg-[#1e2330] border border-[#2a2f3e] rounded-sm p-4">
         <p className="text-xs text-[#52525b] text-center">
-          ⚠️ 免责声明：本平台提供的所有预测内容（包括AI分析和占卜推演）均仅供参考研究，不构成任何投资建议。投资有风险，入市须谨慎。
+          {t('common.disclaimer')}
         </p>
       </div>
     </div>
