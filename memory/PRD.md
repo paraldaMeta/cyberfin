@@ -16,6 +16,9 @@
 5. 多市场分类导航（含美股市场）
 6. 自选股功能
 7. 预测历史记录
+8. **多语言支持（8种语言）**
+9. **金融新闻集成**
+10. **K线图技术指标（MACD/RSI/布林带）**
 
 ## 已实现功能 (2026-03-11 更新)
 
@@ -32,6 +35,7 @@
 - [x] /api/history/save - 保存预测历史
 - [x] /api/history - 查询预测历史（支持筛选）
 - [x] /api/history/{id} - 删除历史记录
+- [x] /api/news - 金融新闻API
 
 ### 前端 (React + Tailwind)
 - [x] 首页市场总览（涨幅榜/跌幅榜/实时行情）
@@ -45,6 +49,30 @@
 - [x] 全局搜索功能
 - [x] 响应式设计
 - [x] 60秒自动刷新
+- [x] **多语言支持（8种语言）**
+- [x] **首页金融新闻组件**
+- [x] **K线图技术指标（MACD/RSI/布林带）**
+
+### 多语言支持 (2026-03-11 新增)
+- [x] i18n框架集成（i18next风格自定义实现）
+- [x] 支持8种语言：中文、英文、日文、韩文、泰文、马来文、印地文、阿拉伯文
+- [x] 语言选择器组件（Header顶部）
+- [x] RTL方向支持（阿拉伯语）
+- [x] 翻译覆盖所有UI文本
+
+### 金融新闻集成 (2026-03-11 新增)
+- [x] /api/news 后端端点（支持Yahoo Finance RSS）
+- [x] FinancialNews组件（首页右侧显示）
+- [x] 支持多地区新闻（中国/日本/香港/韩国/亚洲）
+- [x] 5分钟自动刷新
+
+### K线图技术指标 (2026-03-11 新增)
+- [x] TechnicalIndicatorsChart组件
+- [x] MACD指标（DIF/DEA/柱状图）
+- [x] RSI指标（带70/30超买超卖线）
+- [x] 布林带（上轨/中轨/下轨）
+- [x] 指标切换按钮（可独立开关每个指标）
+- [x] 技术指标面板显示/隐藏控制
 
 ### 数据源集成
 - [x] Yahoo Finance API（主数据源）
@@ -76,12 +104,18 @@
 - 数据源: Yahoo Finance API + Alpha Vantage (backup)
 - AI: MiniMax M2.5 API
 - 前端计算: 技术指标计算器 (technicalIndicators.js)
+- 国际化: 自定义i18n系统 (8种语言)
 
 ## 关键文件
 - /app/backend/server.py - 主后端服务
 - /app/backend/services/ai_prediction_prompts.py - 博士级AI提示词模块
 - /app/frontend/src/pages/AIPredictionPage.jsx - AI预测页面
+- /app/frontend/src/pages/StockDetailPage.jsx - 股票详情页（含技术指标）
 - /app/frontend/src/utils/technicalIndicators.js - 技术指标计算器
+- /app/frontend/src/i18n/translations.js - 多语言翻译配置
+- /app/frontend/src/i18n/LanguageSwitcher.jsx - 语言选择器
+- /app/frontend/src/components/FinancialNews.jsx - 金融新闻组件
+- /app/frontend/src/components/TechnicalIndicatorsChart.jsx - 技术指标图表组件
 
 ## 优先级功能列表
 
@@ -94,22 +128,27 @@
 - 自选股功能
 - 预测历史记录
 - 备选数据源
+- **多语言支持（8种语言）**
+- **金融新闻集成**
+- **K线图技术指标（MACD/RSI/布林带）**
 
-### P1 (待实现)
-- K线图更多技术指标（MACD/RSI/布林带）
-- 新闻资讯整合
-- 预测准确率统计
+### P1 (待实现 - 命理系统)
+- 用户注册页面（收集生辰八字信息）
+- 命理计算引擎（四柱八字、五行、喜忌神）
+- 命盘展示页面（八字表格、五行雷达图、流年运势）
+- 股票板块映射（基于喜用神推荐行业）
+- 与App其他模块联动
 
 ### P2 (待实现)
+- 预测准确率统计
 - 社区讨论功能
 - 价格提醒功能
 - 分享预测报告
 
 ## 下一步任务
-1. 添加更多技术指标到K线图
-2. 整合财经新闻API
-3. 优化MiniMax API调用获取更准确AI分析
-4. 添加预测准确率回测功能
+1. **阶段1**: 命理系统注册页面 + 命理计算引擎（后端核心算法）
+2. **阶段2**: 命盘展示页面（前端UI）
+3. **阶段3**: 股票板块映射 + 模块联动
 
 ## 免责声明
 本平台提供的所有预测内容（包括AI分析和占卜推演）均仅供参考研究，不构成任何投资建议。投资有风险，入市须谨慎。
