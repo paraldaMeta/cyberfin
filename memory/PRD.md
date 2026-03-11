@@ -59,11 +59,29 @@
 - [x] 美股市场支持（AAPL, MSFT, GOOGL, AMZN, NVDA, META, TSLA, BRK-B, JPM, V）
 - [x] 修复空搜索返回422错误的bug（现返回空数组）
 
+### AI解读模块优化 (2026-03-11 新增)
+- [x] 全新博士级System Prompt - 包含7大市场专项框架
+- [x] 前端技术指标计算 - calculateAllIndicators()在调用AI前执行
+- [x] 技术指标快照卡片 - 显示价格、涨跌幅、均线排列、MACD、RSI、技术评分等
+- [x] 新增volume_price_analysis - 量价分析（成交量趋势、量价关系、机构行为）
+- [x] 新增bollinger_analysis - 布林带分析（带宽状态、挤压预警）
+- [x] 新增idiosyncratic_risks - 标的特有风险（区别于系统性风险）
+- [x] 可折叠详细分析面板 - 趋势/动量/量价/布林带分析
+- [x] 5段式专业叙述报告 - opening/technical/fundamental/synthesis/forward_guidance
+- [x] 看多/看空概率校验 - 两者之和必须等于100%
+
 ## 技术架构
 - 前端: React 19 + Tailwind CSS + Recharts + Shadcn/UI
 - 后端: Python FastAPI + Motor (MongoDB)
 - 数据源: Yahoo Finance API + Alpha Vantage (backup)
 - AI: MiniMax M2.5 API
+- 前端计算: 技术指标计算器 (technicalIndicators.js)
+
+## 关键文件
+- /app/backend/server.py - 主后端服务
+- /app/backend/services/ai_prediction_prompts.py - 博士级AI提示词模块
+- /app/frontend/src/pages/AIPredictionPage.jsx - AI预测页面
+- /app/frontend/src/utils/technicalIndicators.js - 技术指标计算器
 
 ## 优先级功能列表
 
