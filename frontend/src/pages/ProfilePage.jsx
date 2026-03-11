@@ -361,7 +361,7 @@ export default function ProfilePage() {
               <CardHeader>
                 <CardTitle className="text-[#f0a500]">2026年月度走势</CardTitle>
                 <CardDescription className="text-[#a1a1aa]">
-                  基于CLSA风水指数预测
+                  基于流年运势预测
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -472,7 +472,7 @@ export default function ProfilePage() {
                         {sector.sectors.slice(0, 3).join('、')}
                       </div>
                       <div className="text-xs text-[#52525b]">
-                        {sector.clsa_2026}
+                        {sector.forecast_2026}
                       </div>
                     </div>
                   ))}

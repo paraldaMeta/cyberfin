@@ -480,7 +480,7 @@ class BaziCalculator:
         })
         
         # 获取最佳入场/离场月份
-        best_entry = [6, 8, 11]  # 根据CLSA 2026预测
+        best_entry = [6, 8, 11]  # 根据2026年流年预测
         best_exit = [7, 12]
         
         return {
