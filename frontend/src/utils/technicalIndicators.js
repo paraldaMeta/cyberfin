@@ -307,20 +307,26 @@ export const calculateSignal = (indicators) => {
 
 // Main function to calculate all indicators
 export const calculateAllIndicators = (stockData) => {
-  if (!stockData || !stockData.history || stockData.history.length < 5) {
+  // Handle the API response structure: { stock: {...}, historical: [...] }
+  const stockInfo = stockData?.stock || stockData;
+  const history = stockData?.historical || stockData?.history || [];
+  
+  const price = stockInfo?.price || 100;
+  const change = stockInfo?.change_percent || 0;
+  const volume = stockInfo?.volume || 0;
+  
+  if (!history || history.length < 5) {
     // Return default values when no historical data
-    const price = stockData?.price || 100;
-    const change = stockData?.change_percent || 0;
     return {
       current_price: price,
       change_pct: change,
       amplitude: Math.abs(change) * 1.5,
-      volume: stockData?.volume || 0,
+      volume: volume,
       volume_ratio: 1.0,
-      high: stockData?.high || price * 1.01,
-      low: stockData?.low || price * 0.99,
-      week52_high: stockData?.week52_high || price * 1.2,
-      week52_low: stockData?.week52_low || price * 0.8,
+      high: stockInfo?.high || price * 1.01,
+      low: stockInfo?.low || price * 0.99,
+      week52_high: stockInfo?.week52_high || price * 1.2,
+      week52_low: stockInfo?.week52_low || price * 0.8,
       percentile_52w: 50,
       ma5: price * 0.99,
       ma10: price * 0.985,
@@ -350,15 +356,15 @@ export const calculateAllIndicators = (stockData) => {
     };
   }
   
-  const history = stockData.history;
+  // Use the history data (already extracted above)
   const current = history[history.length - 1];
-  const price = current.close;
-  const change_pct = stockData.change_percent || 
+  const currentPrice = current.close;
+  const change_pct = stockInfo?.change_percent || 
     ((current.close - current.open) / current.open * 100);
   
   // Calculate all MAs
   const mas = calculateMAs(history);
-  const ma_alignment = getMaAlignment(price, mas.ma5, mas.ma10, mas.ma20, mas.ma60);
+  const ma_alignment = getMaAlignment(currentPrice, mas.ma5, mas.ma10, mas.ma20, mas.ma60);
   
   // Calculate MACD
   const macd = calculateMACD(history);
@@ -377,26 +383,26 @@ export const calculateAllIndicators = (stockData) => {
   const volume_ratio = calculateVolumeRatio(history);
   
   // Calculate 52-week data
-  const week52_high = stockData.week52_high || Math.max(...history.map(d => d.high));
-  const week52_low = stockData.week52_low || Math.min(...history.map(d => d.low));
-  const percentile_52w = calculate52WeekPercentile(price, week52_high, week52_low);
+  const week52_high = stockInfo?.week52_high || Math.max(...history.map(d => d.high));
+  const week52_low = stockInfo?.week52_low || Math.min(...history.map(d => d.low));
+  const percentile_52w = calculate52WeekPercentile(currentPrice, week52_high, week52_low);
   
   // Build indicators object
   const indicators = {
-    current_price: price,
+    current_price: currentPrice,
     change_pct: Math.round(change_pct * 100) / 100,
     amplitude: Math.round((current.high - current.low) / current.low * 10000) / 100,
-    volume: current.volume || stockData.volume || 0,
+    volume: current.volume || stockInfo?.volume || 0,
     volume_ratio,
     high: current.high,
     low: current.low,
     week52_high,
     week52_low,
     percentile_52w,
-    ma5: mas.ma5 ? Math.round(mas.ma5 * 100) / 100 : price * 0.99,
-    ma10: mas.ma10 ? Math.round(mas.ma10 * 100) / 100 : price * 0.985,
-    ma20: mas.ma20 ? Math.round(mas.ma20 * 100) / 100 : price * 0.98,
-    ma60: mas.ma60 ? Math.round(mas.ma60 * 100) / 100 : price * 0.97,
+    ma5: mas.ma5 ? Math.round(mas.ma5 * 100) / 100 : currentPrice * 0.99,
+    ma10: mas.ma10 ? Math.round(mas.ma10 * 100) / 100 : currentPrice * 0.985,
+    ma20: mas.ma20 ? Math.round(mas.ma20 * 100) / 100 : currentPrice * 0.98,
+    ma60: mas.ma60 ? Math.round(mas.ma60 * 100) / 100 : currentPrice * 0.97,
     ma_alignment,
     ...macd,
     rsi6: rsi6.value,
@@ -405,9 +411,9 @@ export const calculateAllIndicators = (stockData) => {
     kdj_k: kdj.k,
     kdj_d: kdj.d,
     kdj_j: kdj.j,
-    boll_upper: boll.upper || price * 1.04,
-    boll_mid: boll.mid || price,
-    boll_lower: boll.lower || price * 0.96,
+    boll_upper: boll.upper || currentPrice * 1.04,
+    boll_mid: boll.mid || currentPrice,
+    boll_lower: boll.lower || currentPrice * 0.96,
     boll_bandwidth: boll.bandwidth,
     price_boll_position: boll.position,
     news_summary: '[实时资讯数据缺失，宏观面分析基于该市场通用框架推断]'
