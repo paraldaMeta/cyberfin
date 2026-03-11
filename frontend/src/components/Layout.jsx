@@ -20,6 +20,7 @@ import { searchStocks } from '../services/api';
 
 const MARKETS = [
   { id: 'a_stock', name: 'A股', icon: '🇨🇳' },
+  { id: 'us_stock', name: '美股', icon: '🇺🇸' },
   { id: 'hk_stock', name: '港股', icon: '🇭🇰' },
   { id: 'jp_stock', name: '日股', icon: '🇯🇵' },
   { id: 'kr_stock', name: '韩股', icon: '🇰🇷' },

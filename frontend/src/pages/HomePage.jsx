@@ -60,6 +60,7 @@ const StockCard = ({ stock, onClick }) => {
 
 const MARKETS = [
   { id: 'a_stock', name: 'A股', icon: '🇨🇳', description: '中国A股市场' },
+  { id: 'us_stock', name: '美股', icon: '🇺🇸', description: '美国股票市场' },
   { id: 'hk_stock', name: '港股', icon: '🇭🇰', description: '香港股票市场' },
   { id: 'jp_stock', name: '日股', icon: '🇯🇵', description: '日本股票市场' },
   { id: 'kr_stock', name: '韩股', icon: '🇰🇷', description: '韩国股票市场' },

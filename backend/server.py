@@ -126,6 +126,18 @@ MARKET_STOCKS = {
         {"symbol": "300750.SZ", "name": "宁德时代"},
         {"symbol": "600900.SS", "name": "长江电力"},
     ],
+    "us_stock": [
+        {"symbol": "AAPL", "name": "苹果"},
+        {"symbol": "MSFT", "name": "微软"},
+        {"symbol": "GOOGL", "name": "谷歌"},
+        {"symbol": "AMZN", "name": "亚马逊"},
+        {"symbol": "NVDA", "name": "英伟达"},
+        {"symbol": "META", "name": "Meta"},
+        {"symbol": "TSLA", "name": "特斯拉"},
+        {"symbol": "BRK-B", "name": "伯克希尔"},
+        {"symbol": "JPM", "name": "摩根大通"},
+        {"symbol": "V", "name": "Visa"},
+    ],
     "hk_stock": [
         {"symbol": "0700.HK", "name": "腾讯控股"},
         {"symbol": "9988.HK", "name": "阿里巴巴"},
@@ -397,6 +409,7 @@ async def get_markets():
     return {
         "markets": [
             {"id": "a_stock", "name": "A股", "description": "中国A股市场"},
+            {"id": "us_stock", "name": "美股", "description": "美国股票市场"},
             {"id": "hk_stock", "name": "港股", "description": "香港股票市场"},
             {"id": "jp_stock", "name": "日股", "description": "日本股票市场"},
             {"id": "kr_stock", "name": "韩股", "description": "韩国股票市场"},
@@ -493,10 +506,14 @@ async def get_stock_detail(symbol: str):
     }
 
 @api_router.get("/search")
-async def search_stocks(q: str = Query(..., min_length=1)):
+async def search_stocks(q: str = Query(default="")):
     """Search stocks by code or name"""
+    # Handle empty query gracefully
+    if not q or not q.strip():
+        return {"results": []}
+    
     results = []
-    q_lower = q.lower()
+    q_lower = q.lower().strip()
     for market_type, stocks in MARKET_STOCKS.items():
         for s in stocks:
             if q_lower in s["symbol"].lower() or q_lower in s["name"].lower():
@@ -554,9 +571,13 @@ async def ai_prediction(request: PredictionRequest):
             market_type = "futures"
         elif "=X" in request.stock_code:
             market_type = "forex"
+        elif ".SS" not in request.stock_code and ".SZ" not in request.stock_code:
+            # US stocks don't have special suffixes
+            market_type = "us_stock"
     
     market_type_cn = {
         "a_stock": "A股",
+        "us_stock": "美股",
         "hk_stock": "港股", 
         "jp_stock": "日股",
         "kr_stock": "韩股",
