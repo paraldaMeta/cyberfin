@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Search, Loader2, TrendingUp, TrendingDown, ArrowLeft, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Sparkles, Search, Loader2, TrendingUp, TrendingDown, ArrowLeft, AlertTriangle, ChevronDown, ChevronUp, Activity } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Progress } from '../components/ui/progress';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../components/ui/collapsible';
-import { searchStocks, getAIPrediction, savePredictionHistory } from '../services/api';
+import { searchStocks, getAIPrediction, savePredictionHistory, getStockDetail } from '../services/api';
+import { calculateAllIndicators } from '../utils/technicalIndicators';
 import { toast } from 'sonner';
 
 const TIME_PERIODS = [
@@ -105,6 +106,8 @@ export default function AIPredictionPage() {
   const [timePeriod, setTimePeriod] = useState('today');
   const [prediction, setPrediction] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [loadingStage, setLoadingStage] = useState('');
+  const [indicators, setIndicators] = useState(null);
 
   const handleSearch = useCallback(async (query) => {
     setSearchQuery(query);
@@ -133,12 +136,32 @@ export default function AIPredictionPage() {
   const handlePredict = async () => {
     if (!selectedStock) return;
     setLoading(true);
+    setIndicators(null);
+    setPrediction(null);
+    
     try {
+      // Stage 1: Fetch stock data
+      setLoadingStage('正在获取股票数据...');
+      const stockResponse = await getStockDetail(selectedStock.symbol);
+      const stockData = stockResponse.data;
+      
+      // Stage 2: Calculate technical indicators (frontend calculation)
+      setLoadingStage('正在计算技术指标...');
+      const calculatedIndicators = calculateAllIndicators(stockData);
+      setIndicators(calculatedIndicators);
+      
+      // Stage 3: Call AI prediction API with indicators
+      setLoadingStage('正在生成深度研判报告...');
       const response = await getAIPrediction({
         stock_code: selectedStock.symbol,
         stock_name: selectedStock.name,
         time_period: timePeriod,
-        market_data: {}
+        market_data: {
+          price: calculatedIndicators.current_price,
+          change_percent: calculatedIndicators.change_pct,
+          volume: calculatedIndicators.volume
+        },
+        indicators: calculatedIndicators
       });
       setPrediction(response.data);
       
@@ -159,6 +182,7 @@ export default function AIPredictionPage() {
       toast.error('预测生成失败，请重试');
     } finally {
       setLoading(false);
+      setLoadingStage('');
     }
   };
 
@@ -293,8 +317,74 @@ export default function AIPredictionPage() {
           <CardContent className="py-12">
             <div className="flex flex-col items-center">
               <div className="quantum-loading mb-6"></div>
-              <p className="text-[#00f0ff] text-lg animate-pulse">正在生成深度研判报告...</p>
+              <p className="text-[#00f0ff] text-lg animate-pulse">{loadingStage || '正在处理...'}</p>
               <p className="text-[#52525b] text-sm mt-2">博士级量化分析引擎运算中</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Technical Indicators Preview - Shows immediately after calculation */}
+      {indicators && !loading && (
+        <Card className="bg-[#141824] border-[#00f0ff]/30">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <Activity className="w-5 h-5 text-[#00f0ff]" />
+              技术指标快照（前端计算）
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              <div className="bg-[#0a0e17] p-3 rounded-sm">
+                <span className="text-xs text-[#52525b] block">当前价格</span>
+                <span className="text-white font-mono">{formatPrice(indicators.current_price)}</span>
+              </div>
+              <div className="bg-[#0a0e17] p-3 rounded-sm">
+                <span className="text-xs text-[#52525b] block">涨跌幅</span>
+                <span className={`font-mono ${indicators.change_pct > 0 ? 'text-[#f5222d]' : indicators.change_pct < 0 ? 'text-[#00b300]' : 'text-white'}`}>
+                  {indicators.change_pct > 0 ? '+' : ''}{indicators.change_pct}%
+                </span>
+              </div>
+              <div className="bg-[#0a0e17] p-3 rounded-sm">
+                <span className="text-xs text-[#52525b] block">均线排列</span>
+                <span className={`text-sm ${indicators.ma_alignment === '多头排列' ? 'text-[#f5222d]' : indicators.ma_alignment === '空头排列' ? 'text-[#00b300]' : 'text-[#f0a500]'}`}>
+                  {indicators.ma_alignment}
+                </span>
+              </div>
+              <div className="bg-[#0a0e17] p-3 rounded-sm">
+                <span className="text-xs text-[#52525b] block">MACD</span>
+                <span className={`text-sm ${indicators.macd_cross === '金叉' ? 'text-[#f5222d]' : indicators.macd_cross === '死叉' ? 'text-[#00b300]' : 'text-white'}`}>
+                  {indicators.macd_cross}
+                </span>
+              </div>
+              <div className="bg-[#0a0e17] p-3 rounded-sm">
+                <span className="text-xs text-[#52525b] block">RSI(14)</span>
+                <span className={`font-mono ${indicators.rsi14 > 70 ? 'text-[#f5222d]' : indicators.rsi14 < 30 ? 'text-[#00b300]' : 'text-white'}`}>
+                  {indicators.rsi14}
+                </span>
+              </div>
+              <div className="bg-[#0a0e17] p-3 rounded-sm">
+                <span className="text-xs text-[#52525b] block">技术评分</span>
+                <span className="text-[#00f0ff] font-mono font-bold">{indicators.tech_score}/10</span>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-[#0a0e17] p-3 rounded-sm">
+                <span className="text-xs text-[#52525b] block">MA5</span>
+                <span className="text-white font-mono text-sm">{formatPrice(indicators.ma5)}</span>
+              </div>
+              <div className="bg-[#0a0e17] p-3 rounded-sm">
+                <span className="text-xs text-[#52525b] block">MA20</span>
+                <span className="text-white font-mono text-sm">{formatPrice(indicators.ma20)}</span>
+              </div>
+              <div className="bg-[#0a0e17] p-3 rounded-sm">
+                <span className="text-xs text-[#52525b] block">布林带</span>
+                <span className="text-[#f0a500] text-sm">{indicators.price_boll_position}</span>
+              </div>
+              <div className="bg-[#0a0e17] p-3 rounded-sm">
+                <span className="text-xs text-[#52525b] block">量比</span>
+                <span className="text-white font-mono">{indicators.volume_ratio}x</span>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -366,6 +456,176 @@ export default function AIPredictionPage() {
               <div className="bg-[#0a0e17] p-3 rounded-sm">
                 <span className="text-xs text-[#52525b] block mb-1">阶段判断依据</span>
                 <p className="text-[#a1a1aa] text-sm">{prediction.market_structure_analysis?.phase_evidence}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Technical Deep Dive */}
+          <Card className="bg-[#141824] border-[#2a2f3e]">
+            <CardHeader>
+              <CardTitle className="text-white text-lg flex items-center gap-2">
+                <Activity className="w-5 h-5 text-[#00f0ff]" />
+                技术面深度分析
+                <span className="ml-auto text-[#00f0ff] font-mono">
+                  评分: {prediction.technical_deep_dive?.technical_score}
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Trend Analysis */}
+              <CollapsibleSection title="趋势分析" defaultOpen={true}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="bg-[#0a0e17] p-3 rounded-sm">
+                    <span className="text-xs text-[#52525b] block mb-1">主趋势</span>
+                    <p className="text-white text-sm">{prediction.technical_deep_dive?.trend_analysis?.primary_trend}</p>
+                  </div>
+                  <div className="bg-[#0a0e17] p-3 rounded-sm">
+                    <span className="text-xs text-[#52525b] block mb-1">次级趋势</span>
+                    <p className="text-white text-sm">{prediction.technical_deep_dive?.trend_analysis?.secondary_trend}</p>
+                  </div>
+                </div>
+                <div className="mt-3 bg-[#0a0e17] p-3 rounded-sm">
+                  <span className="text-xs text-[#52525b] block mb-1">均线排列: <span className="text-[#f0a500]">{prediction.technical_deep_dive?.trend_analysis?.ma_alignment}</span></span>
+                  <p className="text-[#a1a1aa] text-sm">{prediction.technical_deep_dive?.trend_analysis?.ma_commentary}</p>
+                </div>
+              </CollapsibleSection>
+
+              {/* Momentum Analysis */}
+              <CollapsibleSection title="动量分析">
+                <div className="space-y-3">
+                  <div className="bg-[#0a0e17] p-3 rounded-sm">
+                    <span className="text-xs text-[#52525b] block mb-1">MACD</span>
+                    <p className="text-[#a1a1aa] text-sm">{prediction.technical_deep_dive?.momentum_analysis?.macd_interpretation}</p>
+                  </div>
+                  <div className="bg-[#0a0e17] p-3 rounded-sm">
+                    <span className="text-xs text-[#52525b] block mb-1">RSI</span>
+                    <p className="text-[#a1a1aa] text-sm">{prediction.technical_deep_dive?.momentum_analysis?.rsi_interpretation}</p>
+                  </div>
+                  {prediction.technical_deep_dive?.momentum_analysis?.kdj_interpretation && (
+                    <div className="bg-[#0a0e17] p-3 rounded-sm">
+                      <span className="text-xs text-[#52525b] block mb-1">KDJ</span>
+                      <p className="text-[#a1a1aa] text-sm">{prediction.technical_deep_dive?.momentum_analysis?.kdj_interpretation}</p>
+                    </div>
+                  )}
+                  <div className="bg-[#00f0ff]/10 border border-[#00f0ff]/30 p-3 rounded-sm">
+                    <span className="text-xs text-[#00f0ff] block mb-1">动量结论</span>
+                    <p className="text-white text-sm font-medium">{prediction.technical_deep_dive?.momentum_analysis?.momentum_conclusion}</p>
+                  </div>
+                </div>
+              </CollapsibleSection>
+
+              {/* Volume Price Analysis */}
+              {prediction.technical_deep_dive?.volume_price_analysis && (
+                <CollapsibleSection title="量价分析">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="bg-[#0a0e17] p-3 rounded-sm">
+                      <span className="text-xs text-[#52525b] block mb-1">成交量趋势</span>
+                      <p className="text-white text-sm">{prediction.technical_deep_dive?.volume_price_analysis?.volume_trend}</p>
+                    </div>
+                    <div className="bg-[#0a0e17] p-3 rounded-sm">
+                      <span className="text-xs text-[#52525b] block mb-1">量价关系</span>
+                      <p className="text-white text-sm">{prediction.technical_deep_dive?.volume_price_analysis?.price_volume_relationship}</p>
+                    </div>
+                    <div className="bg-[#0a0e17] p-3 rounded-sm">
+                      <span className="text-xs text-[#52525b] block mb-1">机构行为</span>
+                      <p className="text-[#f0a500] text-sm font-medium">{prediction.technical_deep_dive?.volume_price_analysis?.institutional_footprint}</p>
+                    </div>
+                  </div>
+                </CollapsibleSection>
+              )}
+
+              {/* Bollinger Analysis */}
+              {prediction.technical_deep_dive?.bollinger_analysis && (
+                <CollapsibleSection title="布林带分析">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="bg-[#0a0e17] p-3 rounded-sm">
+                      <span className="text-xs text-[#52525b] block mb-1">带宽状态</span>
+                      <p className="text-white text-sm">{prediction.technical_deep_dive?.bollinger_analysis?.band_status}</p>
+                    </div>
+                    <div className="bg-[#0a0e17] p-3 rounded-sm">
+                      <span className="text-xs text-[#52525b] block mb-1">挤压预警</span>
+                      <p className="text-white text-sm">{prediction.technical_deep_dive?.bollinger_analysis?.squeeze_alert}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 bg-[#0a0e17] p-3 rounded-sm">
+                    <span className="text-xs text-[#52525b] block mb-1">结论</span>
+                    <p className="text-[#a1a1aa] text-sm">{prediction.technical_deep_dive?.bollinger_analysis?.bb_conclusion}</p>
+                  </div>
+                </CollapsibleSection>
+              )}
+
+              {/* Key Levels */}
+              <CollapsibleSection title="关键价位">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <span className="text-xs text-[#f5222d] block">压力位</span>
+                    {prediction.technical_deep_dive?.key_levels?.critical_resistance?.map((level, i) => (
+                      <div key={i} className="flex items-center justify-between bg-[#f5222d]/10 p-2 rounded-sm">
+                        <span className="text-[#f5222d] font-mono">{level.price}</span>
+                        <span className="text-[#a1a1aa] text-xs">{level.basis}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded ${level.strength === '强' ? 'bg-[#f5222d]/30 text-[#f5222d]' : 'bg-[#f0a500]/30 text-[#f0a500]'}`}>
+                          {level.strength}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="space-y-2">
+                    <span className="text-xs text-[#00b300] block">支撑位</span>
+                    {prediction.technical_deep_dive?.key_levels?.critical_support?.map((level, i) => (
+                      <div key={i} className="flex items-center justify-between bg-[#00b300]/10 p-2 rounded-sm">
+                        <span className="text-[#00b300] font-mono">{level.price}</span>
+                        <span className="text-[#a1a1aa] text-xs">{level.basis}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded ${level.strength === '强' ? 'bg-[#00b300]/30 text-[#00b300]' : 'bg-[#f0a500]/30 text-[#f0a500]'}`}>
+                          {level.strength}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="mt-3 text-center bg-[#0a0e17] p-3 rounded-sm">
+                  <span className="text-xs text-[#52525b]">枢轴价位</span>
+                  <p className="text-[#00f0ff] font-mono text-lg font-bold">{prediction.technical_deep_dive?.key_levels?.pivot_point}</p>
+                </div>
+              </CollapsibleSection>
+            </CardContent>
+          </Card>
+
+          {/* Macro Fundamental Analysis */}
+          <Card className="bg-[#141824] border-[#2a2f3e]">
+            <CardHeader>
+              <CardTitle className="text-white text-lg flex items-center gap-2">
+                基本面分析
+                <span className="ml-auto text-[#f0a500] font-mono">
+                  评分: {prediction.macro_fundamental_analysis?.fundamental_score}
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="bg-[#0a0e17] p-3 rounded-sm">
+                  <span className="text-xs text-[#52525b] block mb-1">核心驱动因素</span>
+                  <p className="text-[#a1a1aa] text-sm">{prediction.macro_fundamental_analysis?.market_specific_drivers}</p>
+                </div>
+                <div className="bg-[#0a0e17] p-3 rounded-sm">
+                  <span className="text-xs text-[#52525b] block mb-1">政策环境</span>
+                  <p className="text-white text-sm">{prediction.macro_fundamental_analysis?.policy_environment}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="bg-[#0a0e17] p-3 rounded-sm">
+                  <span className="text-xs text-[#52525b] block mb-1">跨资产信号</span>
+                  <p className="text-[#a1a1aa] text-sm">{prediction.macro_fundamental_analysis?.cross_asset_signals}</p>
+                </div>
+                <div className="bg-[#0a0e17] p-3 rounded-sm">
+                  <span className="text-xs text-[#52525b] block mb-1">市场情绪</span>
+                  <p className={`text-sm font-medium ${
+                    prediction.macro_fundamental_analysis?.sentiment_gauge === '贪婪' || prediction.macro_fundamental_analysis?.sentiment_gauge === '极度贪婪' 
+                      ? 'text-[#f5222d]' 
+                      : prediction.macro_fundamental_analysis?.sentiment_gauge === '恐慌' || prediction.macro_fundamental_analysis?.sentiment_gauge === '极度恐慌'
+                        ? 'text-[#00b300]'
+                        : 'text-[#f0a500]'
+                  }`}>{prediction.macro_fundamental_analysis?.sentiment_gauge}</p>
+                </div>
               </div>
             </CardContent>
           </Card>
