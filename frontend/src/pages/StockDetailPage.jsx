@@ -376,43 +376,66 @@ export default function StockDetailPage() {
 
             {aiPrediction && !aiLoading && (
               <div className="space-y-4 animate-fade-in">
-                {/* Direction Badge */}
+                {/* Direction Badge - Support both old and new format */}
                 <div className="flex items-center justify-between">
                   <div className={`px-4 py-2 rounded-sm font-bold ${
-                    aiPrediction.direction === 'bullish' ? 'bg-[#f5222d]/20 text-[#f5222d]' :
-                    aiPrediction.direction === 'bearish' ? 'bg-[#00b300]/20 text-[#00b300]' :
+                    (aiPrediction.direction || aiPrediction.executive_summary?.direction) === 'bullish' ? 'bg-[#f5222d]/20 text-[#f5222d]' :
+                    (aiPrediction.direction || aiPrediction.executive_summary?.direction) === 'bearish' ? 'bg-[#00b300]/20 text-[#00b300]' :
                     'bg-[#8c8c8c]/20 text-[#8c8c8c]'
                   }`}>
-                    {aiPrediction.direction === 'bullish' ? '🔴 看涨' :
-                     aiPrediction.direction === 'bearish' ? '🟢 看跌' : '⚪ 中性'}
+                    {(aiPrediction.direction || aiPrediction.executive_summary?.direction) === 'bullish' ? '🔴 看涨' :
+                     (aiPrediction.direction || aiPrediction.executive_summary?.direction) === 'bearish' ? '🟢 看跌' : '⚪ 中性'}
                   </div>
                   <div className="text-right">
                     <span className="text-xs text-[#52525b]">置信度</span>
                     <div className="flex items-center gap-2">
-                      <Progress value={aiPrediction.confidence} className="w-24 h-2" />
-                      <span className="text-[#00f0ff] font-mono font-bold">{aiPrediction.confidence}%</span>
+                      <Progress value={parseInt(aiPrediction.confidence || aiPrediction.executive_summary?.confidence_level || '50')} className="w-24 h-2" />
+                      <span className="text-[#00f0ff] font-mono font-bold">{aiPrediction.confidence || aiPrediction.executive_summary?.confidence_level || '50%'}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Target Price Range */}
+                {/* New Format: Executive Summary */}
+                {aiPrediction.executive_summary && (
+                  <div className="bg-[#00f0ff]/10 border border-[#00f0ff]/30 p-3 rounded-sm">
+                    <span className="text-xs text-[#00f0ff] block mb-1">研报摘要</span>
+                    <p className="text-white text-sm font-medium">{aiPrediction.executive_summary.headline}</p>
+                    <p className="text-[#a1a1aa] text-xs mt-2">{aiPrediction.executive_summary.three_line_summary}</p>
+                  </div>
+                )}
+
+                {/* Target Price Range - Support both formats */}
                 <div className="bg-[#141824] p-3 rounded-sm">
                   <span className="text-xs text-[#52525b] block mb-1">目标价区间</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-[#00b300] font-mono">{formatPrice(aiPrediction.target_price_range?.low)}</span>
-                    <span className="text-[#52525b]">-</span>
-                    <span className="text-[#f5222d] font-mono">{formatPrice(aiPrediction.target_price_range?.high)}</span>
+                    {aiPrediction.target_price_range ? (
+                      <>
+                        <span className="text-[#00b300] font-mono">{formatPrice(aiPrediction.target_price_range?.low)}</span>
+                        <span className="text-[#52525b]">-</span>
+                        <span className="text-[#f5222d] font-mono">{formatPrice(aiPrediction.target_price_range?.high)}</span>
+                      </>
+                    ) : aiPrediction.scenario_analysis ? (
+                      <>
+                        <span className="text-[#00b300] font-mono">{aiPrediction.scenario_analysis.bear_scenario?.target_levels || '--'}</span>
+                        <span className="text-[#52525b]">~</span>
+                        <span className="text-[#f5222d] font-mono">{aiPrediction.scenario_analysis.bull_scenario?.target_levels || '--'}</span>
+                      </>
+                    ) : (
+                      <span className="text-[#a1a1aa]">--</span>
+                    )}
                   </div>
                 </div>
 
-                {/* Support & Resistance */}
+                {/* Support & Resistance - Support both formats */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-[#141824] p-3 rounded-sm">
                     <span className="text-xs text-[#52525b] block mb-1">支撑位</span>
                     <div className="space-y-1">
                       {aiPrediction.support_levels?.map((level, i) => (
                         <span key={i} className="text-[#00b300] font-mono text-sm block">{formatPrice(level)}</span>
-                      ))}
+                      )) || aiPrediction.technical_deep_dive?.key_levels?.critical_support?.map((level, i) => (
+                        <span key={i} className="text-[#00b300] font-mono text-sm block">{level.price}</span>
+                      )) || <span className="text-[#a1a1aa] text-sm">--</span>}
                     </div>
                   </div>
                   <div className="bg-[#141824] p-3 rounded-sm">
@@ -420,31 +443,39 @@ export default function StockDetailPage() {
                     <div className="space-y-1">
                       {aiPrediction.resistance_levels?.map((level, i) => (
                         <span key={i} className="text-[#f5222d] font-mono text-sm block">{formatPrice(level)}</span>
-                      ))}
+                      )) || aiPrediction.technical_deep_dive?.key_levels?.critical_resistance?.map((level, i) => (
+                        <span key={i} className="text-[#f5222d] font-mono text-sm block">{level.price}</span>
+                      )) || <span className="text-[#a1a1aa] text-sm">--</span>}
                     </div>
                   </div>
                 </div>
 
-                {/* Analysis */}
+                {/* Analysis - Support both formats */}
                 <div className="bg-[#141824] p-3 rounded-sm">
                   <span className="text-xs text-[#52525b] block mb-1">分析详情</span>
-                  <p className="text-[#a1a1aa] text-sm">{aiPrediction.analysis}</p>
+                  <p className="text-[#a1a1aa] text-sm">
+                    {aiPrediction.analysis || aiPrediction.professional_narrative?.synthesis_paragraph || aiPrediction.market_structure_analysis?.phase_evidence || '暂无分析详情'}
+                  </p>
                 </div>
 
-                {/* Suggestions */}
+                {/* Suggestions - Support both formats */}
                 <div className="bg-[#141824] p-3 rounded-sm">
                   <span className="text-xs text-[#52525b] block mb-1">操作建议</span>
-                  <p className="text-white text-sm">{aiPrediction.suggestions}</p>
+                  <p className="text-white text-sm">
+                    {aiPrediction.suggestions || aiPrediction.professional_narrative?.forward_guidance || aiPrediction.scenario_analysis?.base_case_summary || '暂无操作建议'}
+                  </p>
                 </div>
 
-                {/* Risk Warning */}
+                {/* Risk Warning - Support both formats */}
                 <div className="bg-[#f5222d]/10 border border-[#f5222d]/30 p-3 rounded-sm">
                   <span className="text-xs text-[#f5222d] block mb-1">⚠️ 风险提示</span>
-                  <p className="text-[#a1a1aa] text-xs">{aiPrediction.risk_warning}</p>
+                  <p className="text-[#a1a1aa] text-xs">
+                    {aiPrediction.risk_warning || aiPrediction.disclaimer || aiPrediction.risk_assessment?.tail_risk_scenario || '投资有风险，入市需谨慎。本分析仅供参考，不构成投资建议。'}
+                  </p>
                 </div>
 
                 <p className="text-xs text-[#52525b] text-center">
-                  生成时间: {new Date(aiPrediction.timestamp).toLocaleString('zh-CN')}
+                  生成时间: {new Date(aiPrediction.timestamp || aiPrediction.report_meta?.generated_at || new Date()).toLocaleString('zh-CN')}
                 </p>
               </div>
             )}
