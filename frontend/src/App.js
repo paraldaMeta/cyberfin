@@ -9,25 +9,28 @@ import DivinationPage from "./pages/DivinationPage";
 import WatchlistPage from "./pages/WatchlistPage";
 import HistoryPage from "./pages/HistoryPage";
 import { Toaster } from "./components/ui/sonner";
+import { LanguageProvider } from "./i18n";
 
 function App() {
   return (
-    <div className="App min-h-screen bg-[#0a0e17]">
-      <BrowserRouter>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/market/:type" element={<MarketPage />} />
-            <Route path="/stock/:symbol" element={<StockDetailPage />} />
-            <Route path="/predict/ai" element={<AIPredictionPage />} />
-            <Route path="/predict/divination" element={<DivinationPage />} />
-            <Route path="/watchlist" element={<WatchlistPage />} />
-            <Route path="/history" element={<HistoryPage />} />
-          </Routes>
-        </Layout>
-      </BrowserRouter>
-      <Toaster position="top-right" />
-    </div>
+    <LanguageProvider>
+      <div className="App min-h-screen bg-[#0a0e17]">
+        <BrowserRouter>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/market/:type" element={<MarketPage />} />
+              <Route path="/stock/:symbol" element={<StockDetailPage />} />
+              <Route path="/predict/ai" element={<AIPredictionPage />} />
+              <Route path="/predict/divination" element={<DivinationPage />} />
+              <Route path="/watchlist" element={<WatchlistPage />} />
+              <Route path="/history" element={<HistoryPage />} />
+            </Routes>
+          </Layout>
+        </BrowserRouter>
+        <Toaster position="top-right" />
+      </div>
+    </LanguageProvider>
   );
 }
 

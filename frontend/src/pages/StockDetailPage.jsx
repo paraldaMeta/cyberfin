@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, TrendingUp, TrendingDown, Sparkles, Star, RefreshCw, Loader2, Heart } from 'lucide-react';
+import { ArrowLeft, TrendingUp, TrendingDown, Sparkles, Star, RefreshCw, Loader2, Heart, BarChart2, Activity } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -13,6 +13,8 @@ import { ScrollArea } from '../components/ui/scroll-area';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, ComposedChart, Bar } from 'recharts';
 import { toast } from 'sonner';
 import { getStockDetail, getAIPrediction, getDivinationPrediction, savePredictionHistory, addToWatchlist } from '../services/api';
+import { TechnicalIndicatorsPanel, calculateBollingerData } from '../components/TechnicalIndicatorsChart';
+import { useLanguage } from '../i18n';
 
 // Get client ID for watchlist
 const getClientId = () => {
@@ -69,12 +71,15 @@ const CustomTooltip = ({ active, payload, label }) => {
 export default function StockDetailPage() {
   const { symbol } = useParams();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const decodedSymbol = decodeURIComponent(symbol);
   
   const [stockData, setStockData] = useState(null);
   const [historical, setHistorical] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('ai');
+  const [showIndicators, setShowIndicators] = useState(true);
+  const [showBollinger, setShowBollinger] = useState(false);
   
   // AI Prediction State
   const [aiTimePeriod, setAiTimePeriod] = useState('today');

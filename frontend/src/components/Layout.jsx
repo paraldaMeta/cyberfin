@@ -17,24 +17,26 @@ import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
 import { searchStocks } from '../services/api';
-
-const MARKETS = [
-  { id: 'a_stock', name: 'A股', icon: '🇨🇳' },
-  { id: 'us_stock', name: '美股', icon: '🇺🇸' },
-  { id: 'hk_stock', name: '港股', icon: '🇭🇰' },
-  { id: 'jp_stock', name: '日股', icon: '🇯🇵' },
-  { id: 'kr_stock', name: '韩股', icon: '🇰🇷' },
-  { id: 'th_stock', name: '泰股', icon: '🇹🇭' },
-  { id: 'futures', name: '期货', icon: '📊' },
-  { id: 'forex', name: '外汇', icon: '💱' },
-];
+import { useLanguage, LanguageSwitcher } from '../i18n';
 
 export default function Layout({ children }) {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [showResults, setShowResults] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const MARKETS = [
+    { id: 'a_stock', name: t('market.a_stock'), icon: '🇨🇳' },
+    { id: 'us_stock', name: t('market.us_stock'), icon: '🇺🇸' },
+    { id: 'hk_stock', name: t('market.hk_stock'), icon: '🇭🇰' },
+    { id: 'jp_stock', name: t('market.jp_stock'), icon: '🇯🇵' },
+    { id: 'kr_stock', name: t('market.kr_stock'), icon: '🇰🇷' },
+    { id: 'th_stock', name: t('market.th_stock'), icon: '🇹🇭' },
+    { id: 'futures', name: t('market.futures'), icon: '📊' },
+    { id: 'forex', name: t('market.forex'), icon: '💱' },
+  ];
 
   const handleSearch = useCallback(async (query) => {
     setSearchQuery(query);
@@ -85,8 +87,8 @@ export default function Layout({ children }) {
             <div className="flex items-center gap-2">
               <TrendingUp className="w-8 h-8 text-[#f0a500]" />
               <div>
-                <h1 className="text-lg font-bold text-white font-market">亚洲金融预测</h1>
-                <p className="text-xs text-[#a1a1aa]">Intelligent Prediction</p>
+                <h1 className="text-lg font-bold text-white font-market">{t('home.title')}</h1>
+                <p className="text-xs text-[#a1a1aa]">{t('home.subtitle')}</p>
               </div>
             </div>
           </div>
@@ -94,7 +96,7 @@ export default function Layout({ children }) {
           {/* Market Categories */}
           <ScrollArea className="flex-1 py-4">
             <div className="px-3 mb-4">
-              <h2 className="text-xs uppercase tracking-wider text-[#52525b] mb-2 px-2">市场分类</h2>
+              <h2 className="text-xs uppercase tracking-wider text-[#52525b] mb-2 px-2">{t('nav.markets')}</h2>
               {MARKETS.map((market) => (
                 <button
                   key={market.id}
@@ -110,14 +112,14 @@ export default function Layout({ children }) {
             </div>
 
             <div className="px-3 mb-4">
-              <h2 className="text-xs uppercase tracking-wider text-[#52525b] mb-2 px-2">智能预测</h2>
+              <h2 className="text-xs uppercase tracking-wider text-[#52525b] mb-2 px-2">{t('nav.ai_prediction')}</h2>
               <button
                 onClick={() => { navigate('/predict/ai'); setSidebarOpen(false); }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-left hover:bg-[#1e2330] transition-colors group"
                 data-testid="nav-ai-predict"
               >
                 <Sparkles className="w-5 h-5 text-[#00f0ff]" />
-                <span className="text-sm text-[#a1a1aa] group-hover:text-white transition-colors">AI智能预测</span>
+                <span className="text-sm text-[#a1a1aa] group-hover:text-white transition-colors">{t('nav.ai_prediction')}</span>
               </button>
               <button
                 onClick={() => { navigate('/predict/divination'); setSidebarOpen(false); }}
@@ -125,19 +127,19 @@ export default function Layout({ children }) {
                 data-testid="nav-divination"
               >
                 <Star className="w-5 h-5 text-[#ffd700]" />
-                <span className="text-sm text-[#a1a1aa] group-hover:text-white transition-colors">占卜推演</span>
+                <span className="text-sm text-[#a1a1aa] group-hover:text-white transition-colors">{t('nav.divination')}</span>
               </button>
             </div>
 
             <div className="px-3 mb-4">
-              <h2 className="text-xs uppercase tracking-wider text-[#52525b] mb-2 px-2">我的</h2>
+              <h2 className="text-xs uppercase tracking-wider text-[#52525b] mb-2 px-2">{t('nav.watchlist')}</h2>
               <button
                 onClick={() => { navigate('/watchlist'); setSidebarOpen(false); }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-left hover:bg-[#1e2330] transition-colors group"
                 data-testid="nav-watchlist"
               >
                 <Heart className="w-5 h-5 text-[#f0a500]" />
-                <span className="text-sm text-[#a1a1aa] group-hover:text-white transition-colors">自选股</span>
+                <span className="text-sm text-[#a1a1aa] group-hover:text-white transition-colors">{t('nav.watchlist')}</span>
               </button>
               <button
                 onClick={() => { navigate('/history'); setSidebarOpen(false); }}
@@ -145,7 +147,7 @@ export default function Layout({ children }) {
                 data-testid="nav-history"
               >
                 <History className="w-5 h-5 text-[#a1a1aa]" />
-                <span className="text-sm text-[#a1a1aa] group-hover:text-white transition-colors">预测历史</span>
+                <span className="text-sm text-[#a1a1aa] group-hover:text-white transition-colors">{t('nav.history')}</span>
               </button>
             </div>
           </ScrollArea>
@@ -153,7 +155,7 @@ export default function Layout({ children }) {
           {/* Footer */}
           <div className="p-4 border-t border-[#2a2f3e]">
             <p className="text-xs text-[#52525b] text-center">
-              仅供参考 · 不构成投资建议
+              {t('common.disclaimer').substring(3, 30)}...
             </p>
           </div>
         </div>
@@ -178,7 +180,7 @@ export default function Layout({ children }) {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#52525b]" />
               <Input
                 type="text"
-                placeholder="搜索股票代码或名称..."
+                placeholder={t('nav.search_placeholder')}
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
                 onFocus={() => searchResults.length > 0 && setShowResults(true)}
@@ -207,6 +209,9 @@ export default function Layout({ children }) {
                 </div>
               )}
             </div>
+
+            {/* Language Switcher */}
+            <LanguageSwitcher />
 
             {/* Quick Actions */}
             <div className="hidden md:flex items-center gap-2">

@@ -45,4 +45,7 @@ export const addToWatchlist = (clientId, item) => api.post(`/watchlist/${clientI
 export const removeFromWatchlist = (clientId, symbol) => api.delete(`/watchlist/${clientId}/${encodeURIComponent(symbol)}`);
 export const getWatchlistWithData = (clientId) => api.get(`/watchlist/${clientId}/data`);
 
+// News
+export const getFinancialNews = (limit = 10) => api.get(`/news?limit=${limit}`);
+
 export default api;
