@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Skeleton } from '../components/ui/skeleton';
 import { getMarketOverview } from '../services/api';
 import FinancialNews from '../components/FinancialNews';
+import TianjiPanel from '../components/TianjiPanel';
 import { useLanguage } from '../i18n';
 
 // Format number with commas and sign
@@ -137,7 +138,7 @@ export default function HomePage() {
       </div>
 
       {/* Market Categories Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
         {MARKETS.map((market) => (
           <Card 
             key={market.id}
@@ -152,6 +153,9 @@ export default function HomePage() {
           </Card>
         ))}
       </div>
+
+      {/* 今日天机板块 */}
+      <TianjiPanel />
 
       {/* Top Movers */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

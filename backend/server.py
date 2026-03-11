@@ -20,6 +20,7 @@ from services.ai_prediction_prompts import SYSTEM_PROMPT, build_user_prompt
 from services.bazi import BaziCalculator
 from services.bazi.city_coordinates import get_province_list, get_city_list
 from services.bazi.constants import SHICHEN_OPTIONS
+from services.bazi.daily_tianji import DailyTianjiCalculator, get_month_calendar
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -1641,6 +1642,69 @@ async def refresh_user_bazi(user_id: str):
     except Exception as e:
         logger.error(f"Bazi refresh error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"命盘刷新失败: {str(e)}")
+
+# ============ 天机荐股 API ============
+
+@api_router.get("/tianji/today")
+async def get_today_tianji(user_id: Optional[str] = None):
+    """获取今日天机数据"""
+    from datetime import date
+    
+    try:
+        calculator = DailyTianjiCalculator()
+        
+        # 如果提供了用户ID，获取用户的喜忌神
+        user_xiyong = None
+        user_name = None
+        if user_id:
+            user = await db.users.find_one({"id": user_id})
+            if user and user.get("bazi_data"):
+                user_xiyong = user["bazi_data"].get("xiyong")
+                user_name = user.get("name")
+        
+        tianji = calculator.get_full_tianji(user_xiyong, user_name)
+        return {"success": True, "tianji": tianji}
+    except Exception as e:
+        logger.error(f"Tianji calculation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"天机计算失败: {str(e)}")
+
+@api_router.get("/tianji/date/{date_str}")
+async def get_tianji_by_date(date_str: str, user_id: Optional[str] = None):
+    """获取指定日期的天机数据"""
+    from datetime import date
+    
+    try:
+        target_date = date.fromisoformat(date_str)
+        calculator = DailyTianjiCalculator(target_date)
+        
+        user_xiyong = None
+        user_name = None
+        if user_id:
+            user = await db.users.find_one({"id": user_id})
+            if user and user.get("bazi_data"):
+                user_xiyong = user["bazi_data"].get("xiyong")
+                user_name = user.get("name")
+        
+        tianji = calculator.get_full_tianji(user_xiyong, user_name)
+        return {"success": True, "tianji": tianji}
+    except ValueError:
+        raise HTTPException(status_code=400, detail="日期格式错误，请使用 YYYY-MM-DD 格式")
+    except Exception as e:
+        logger.error(f"Tianji calculation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"天机计算失败: {str(e)}")
+
+@api_router.get("/tianji/calendar/{year}/{month}")
+async def get_tianji_calendar(year: int, month: int):
+    """获取指定月份的天机日历"""
+    try:
+        if month < 1 or month > 12:
+            raise HTTPException(status_code=400, detail="月份必须在1-12之间")
+        
+        calendar_data = get_month_calendar(year, month)
+        return {"success": True, "calendar": calendar_data, "year": year, "month": month}
+    except Exception as e:
+        logger.error(f"Calendar calculation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"日历计算失败: {str(e)}")
 
 # Include the router in the main app (after all routes are defined)
 app.include_router(api_router)
