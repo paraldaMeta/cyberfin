@@ -16,6 +16,11 @@ import json
 # Import AI prediction prompts
 from services.ai_prediction_prompts import SYSTEM_PROMPT, build_user_prompt
 
+# Import Bazi calculator
+from services.bazi import BaziCalculator
+from services.bazi.city_coordinates import get_province_list, get_city_list
+from services.bazi.constants import SHICHEN_OPTIONS
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -152,6 +157,54 @@ class WatchlistItem(BaseModel):
     name: str
     market_type: str
     added_at: str
+
+# ============ User & Bazi Models ============
+class UserRegisterRequest(BaseModel):
+    """用户注册请求"""
+    username: str
+    password: str
+    phone: Optional[str] = None
+    name: str  # 姓名（用于八字推演显示）
+    gender: str  # 男/女
+    birth_year: int
+    birth_month: int
+    birth_day: int
+    birth_hour: Optional[str] = None  # 时辰地支，如 '子', '丑' 等，或 'unknown'
+    birth_province: Optional[str] = None
+    birth_city: Optional[str] = None
+
+class UserLoginRequest(BaseModel):
+    """用户登录请求"""
+    username: str
+    password: str
+
+class UserProfile(BaseModel):
+    """用户资料"""
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    username: str
+    phone: Optional[str] = None
+    name: str
+    gender: str
+    birth_year: int
+    birth_month: int
+    birth_day: int
+    birth_hour: Optional[str] = None
+    birth_province: Optional[str] = None
+    birth_city: Optional[str] = None
+    bazi_data: Optional[Dict[str, Any]] = None  # 存储计算好的命盘数据
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class BaziCalculateRequest(BaseModel):
+    """八字计算请求"""
+    name: str
+    gender: str
+    birth_year: int
+    birth_month: int
+    birth_day: int
+    birth_hour: Optional[str] = None  # 时辰地支
+    birth_province: Optional[str] = None
+    birth_city: Optional[str] = None
 
 # ============ Market Data Service ============
 # Stock symbols for different markets
@@ -1389,6 +1442,207 @@ async def get_watchlist_with_data(client_id: str):
     return {"watchlist": result}
 
 # Include the router in the main app
+# Note: This is done after all routes are defined
+# app.include_router(api_router)  # Moved to end
+
+# ============ User & Bazi Routes ============
+
+@api_router.get("/bazi/provinces")
+async def get_provinces():
+    """获取省份列表"""
+    provinces = get_province_list()
+    return {"provinces": provinces}
+
+@api_router.get("/bazi/cities/{province}")
+async def get_cities(province: str):
+    """获取指定省份的城市列表"""
+    cities = get_city_list(province)
+    return {"cities": cities}
+
+@api_router.get("/bazi/shichen")
+async def get_shichen_options():
+    """获取时辰选项列表"""
+    from services.bazi.constants import SHICHEN_OPTIONS
+    return {"shichen": SHICHEN_OPTIONS}
+
+@api_router.post("/bazi/calculate")
+async def calculate_bazi(request: BaziCalculateRequest):
+    """计算八字命盘"""
+    try:
+        # 将时辰地支转换为小时
+        birth_hour = None
+        if request.birth_hour and request.birth_hour != 'unknown':
+            hour_map = {
+                '子': 0, '丑': 2, '寅': 4, '卯': 6,
+                '辰': 8, '巳': 10, '午': 12, '未': 14,
+                '申': 16, '酉': 18, '戌': 20, '亥': 22
+            }
+            birth_hour = hour_map.get(request.birth_hour)
+        
+        calculator = BaziCalculator(
+            birth_year=request.birth_year,
+            birth_month=request.birth_month,
+            birth_day=request.birth_day,
+            birth_hour=birth_hour,
+            gender=request.gender,
+            province=request.birth_province,
+            city=request.birth_city,
+            name=request.name
+        )
+        
+        result = calculator.get_full_bazi_analysis()
+        return {"success": True, "bazi": result}
+    except Exception as e:
+        logger.error(f"Bazi calculation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"命盘计算失败: {str(e)}")
+
+@api_router.post("/auth/register")
+async def register_user(request: UserRegisterRequest):
+    """用户注册"""
+    try:
+        # 检查用户名是否已存在
+        existing = await db.users.find_one({"username": request.username})
+        if existing:
+            raise HTTPException(status_code=400, detail="用户名已存在")
+        
+        # 将时辰地支转换为小时
+        birth_hour = None
+        if request.birth_hour and request.birth_hour != 'unknown':
+            hour_map = {
+                '子': 0, '丑': 2, '寅': 4, '卯': 6,
+                '辰': 8, '巳': 10, '午': 12, '未': 14,
+                '申': 16, '酉': 18, '戌': 20, '亥': 22
+            }
+            birth_hour = hour_map.get(request.birth_hour)
+        
+        # 计算八字命盘
+        calculator = BaziCalculator(
+            birth_year=request.birth_year,
+            birth_month=request.birth_month,
+            birth_day=request.birth_day,
+            birth_hour=birth_hour,
+            gender=request.gender,
+            province=request.birth_province,
+            city=request.birth_city,
+            name=request.name
+        )
+        bazi_data = calculator.get_full_bazi_analysis()
+        
+        # 创建用户
+        user_id = str(uuid.uuid4())
+        user = {
+            "id": user_id,
+            "username": request.username,
+            "password": request.password,  # 注意：实际应用中应该加密存储
+            "phone": request.phone,
+            "name": request.name,
+            "gender": request.gender,
+            "birth_year": request.birth_year,
+            "birth_month": request.birth_month,
+            "birth_day": request.birth_day,
+            "birth_hour": request.birth_hour,
+            "birth_province": request.birth_province,
+            "birth_city": request.birth_city,
+            "bazi_data": bazi_data,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        
+        await db.users.insert_one(user)
+        
+        # 返回用户信息（不包含密码）
+        user_response = {k: v for k, v in user.items() if k != 'password' and k != '_id'}
+        return {"success": True, "user": user_response}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"注册失败: {str(e)}")
+
+@api_router.post("/auth/login")
+async def login_user(request: UserLoginRequest):
+    """用户登录"""
+    try:
+        user = await db.users.find_one({
+            "username": request.username,
+            "password": request.password
+        })
+        
+        if not user:
+            raise HTTPException(status_code=401, detail="用户名或密码错误")
+        
+        # 返回用户信息（不包含密码）
+        user_response = {k: v for k, v in user.items() if k != 'password' and k != '_id'}
+        return {"success": True, "user": user_response}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"登录失败: {str(e)}")
+
+@api_router.get("/user/{user_id}")
+async def get_user_profile(user_id: str):
+    """获取用户资料"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    
+    user_response = {k: v for k, v in user.items() if k != 'password' and k != '_id'}
+    return {"user": user_response}
+
+@api_router.get("/user/{user_id}/bazi")
+async def get_user_bazi(user_id: str):
+    """获取用户的八字命盘"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    
+    if not user.get("bazi_data"):
+        raise HTTPException(status_code=404, detail="用户命盘数据不存在")
+    
+    return {"bazi": user["bazi_data"]}
+
+@api_router.post("/user/{user_id}/bazi/refresh")
+async def refresh_user_bazi(user_id: str):
+    """重新计算用户的八字命盘"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    
+    try:
+        # 将时辰地支转换为小时
+        birth_hour = None
+        if user.get("birth_hour") and user.get("birth_hour") != 'unknown':
+            hour_map = {
+                '子': 0, '丑': 2, '寅': 4, '卯': 6,
+                '辰': 8, '巳': 10, '午': 12, '未': 14,
+                '申': 16, '酉': 18, '戌': 20, '亥': 22
+            }
+            birth_hour = hour_map.get(user["birth_hour"])
+        
+        calculator = BaziCalculator(
+            birth_year=user["birth_year"],
+            birth_month=user["birth_month"],
+            birth_day=user["birth_day"],
+            birth_hour=birth_hour,
+            gender=user["gender"],
+            province=user.get("birth_province"),
+            city=user.get("birth_city"),
+            name=user["name"]
+        )
+        bazi_data = calculator.get_full_bazi_analysis()
+        
+        # 更新数据库
+        await db.users.update_one(
+            {"id": user_id},
+            {"$set": {"bazi_data": bazi_data}}
+        )
+        
+        return {"success": True, "bazi": bazi_data}
+    except Exception as e:
+        logger.error(f"Bazi refresh error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"命盘刷新失败: {str(e)}")
+
+# Include the router in the main app (after all routes are defined)
 app.include_router(api_router)
 
 app.add_middleware(

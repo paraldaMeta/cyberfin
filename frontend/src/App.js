@@ -8,6 +8,9 @@ import AIPredictionPage from "./pages/AIPredictionPage";
 import DivinationPage from "./pages/DivinationPage";
 import WatchlistPage from "./pages/WatchlistPage";
 import HistoryPage from "./pages/HistoryPage";
+import RegisterPage from "./pages/RegisterPage";
+import LoginPage from "./pages/LoginPage";
+import ProfilePage from "./pages/ProfilePage";
 import { Toaster } from "./components/ui/sonner";
 import { LanguageProvider } from "./i18n";
 
@@ -25,6 +28,9 @@ function App() {
               <Route path="/predict/divination" element={<DivinationPage />} />
               <Route path="/watchlist" element={<WatchlistPage />} />
               <Route path="/history" element={<HistoryPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
             </Routes>
           </Layout>
         </BrowserRouter>

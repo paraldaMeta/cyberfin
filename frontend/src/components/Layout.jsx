@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Search, 
@@ -11,13 +11,16 @@ import {
   X,
   ChevronRight,
   History,
-  Heart
+  Heart,
+  User,
+  LogIn
 } from 'lucide-react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
 import { searchStocks } from '../services/api';
 import { useLanguage, LanguageSwitcher } from '../i18n';
+import { userStorage } from '../services/authService';
 
 export default function Layout({ children }) {
   const navigate = useNavigate();
@@ -26,6 +29,13 @@ export default function Layout({ children }) {
   const [searchResults, setSearchResults] = useState([]);
   const [showResults, setShowResults] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [user, setUser] = useState(null);
+
+  // 检查用户登录状态
+  useEffect(() => {
+    const storedUser = userStorage.getUser();
+    setUser(storedUser);
+  }, []);
 
   const MARKETS = [
     { id: 'a_stock', name: t('market.a_stock'), icon: '🇨🇳' },
@@ -149,6 +159,33 @@ export default function Layout({ children }) {
                 <History className="w-5 h-5 text-[#a1a1aa]" />
                 <span className="text-sm text-[#a1a1aa] group-hover:text-white transition-colors">{t('nav.history')}</span>
               </button>
+            </div>
+
+            {/* 命盘入口 */}
+            <div className="px-3 mb-4">
+              <h2 className="text-xs uppercase tracking-wider text-[#52525b] mb-2 px-2">命理中心</h2>
+              {user ? (
+                <button
+                  onClick={() => { navigate('/profile'); setSidebarOpen(false); }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-left hover:bg-[#1e2330] transition-colors group bg-[#f0a500]/10 border border-[#f0a500]/30"
+                  data-testid="nav-profile"
+                >
+                  <User className="w-5 h-5 text-[#f0a500]" />
+                  <div className="flex-1">
+                    <span className="text-sm text-[#f0a500] block">{user.name || '我的命盘'}</span>
+                    <span className="text-xs text-[#52525b]">{user.bazi_data?.sizhu?.year?.shengxiao}年</span>
+                  </div>
+                </button>
+              ) : (
+                <button
+                  onClick={() => { navigate('/register'); setSidebarOpen(false); }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-left hover:bg-[#1e2330] transition-colors group"
+                  data-testid="nav-register"
+                >
+                  <LogIn className="w-5 h-5 text-[#f0a500]" />
+                  <span className="text-sm text-[#a1a1aa] group-hover:text-white transition-colors">命理注册</span>
+                </button>
+              )}
             </div>
           </ScrollArea>
 
